@@ -17,6 +17,13 @@ prereleases use `beta`.
 5. Push the tag. The protected `npm` GitHub environment requires maintainer review;
    the publish workflow uses npm trusted publishing and provenance.
 
+For the first npm release, npm requires the package to exist before trusted
+publishing can be configured. Publish the reviewed tag interactively with
+`npm publish` from a clean checkout of that tag and complete npm's 2FA prompt.
+Then configure the repository and `npm` environment as a trusted publisher in
+the package settings. Later releases can use the GitHub Actions workflow and
+provenance without a long-lived npm token.
+
 GitHub Actions checks builds, typechecks, tests, native integration, fresh-install
 behavior, generated output, and dependency audit on pull requests and pushes.
 
