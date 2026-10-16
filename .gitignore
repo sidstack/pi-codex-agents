@@ -1,0 +1,5 @@
+node_modules/
+release/
+.pi/subagents/
+*.log
+*.tgz

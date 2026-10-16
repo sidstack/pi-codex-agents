@@ -1,0 +1,14 @@
+import type { SessionFeature } from "./contracts.js";
+
+export const inactivityFeature: SessionFeature = {
+  id: "inactivity",
+  start(host) {
+    const timeout = host.config.idleTimeoutMs;
+    if (!timeout) return;
+    const timer = setInterval(() => {
+      void host.deactivateIdle(Date.now(), timeout).catch((error: unknown) => console.error(error));
+    }, Math.min(30_000, timeout));
+    timer.unref();
+    return () => clearInterval(timer);
+  },
+};

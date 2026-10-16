@@ -1,0 +1,37 @@
+# Releasing
+
+The project is published as `pi-codex-agents` on npm and `sidstack/pi-codex-agents`
+on GitHub. Releases use semver. Prereleases publish with npm's `beta` tag until a
+stable MVP is ready.
+
+## Prepare a release
+
+1. Update `package.json`, `package-lock.json`, `CHANGELOG.md`, and installation
+   instructions together.
+2. Run `npm run release:check` and `npm audit`. Review `npm pack --dry-run` to
+   confirm that the archive contains compiled modules, license, and docs, without
+   credentials, histories, or checkout dependencies.
+3. Rebuild and commit generated `dist/` with the source changes.
+4. Create a matching `vVERSION` tag on the reviewed commit. The publish guard
+   requires a clean tree and exact matching tag.
+5. Push the tag. The protected `npm` GitHub environment requires maintainer review;
+   the publish workflow uses npm trusted publishing and provenance.
+
+GitHub Actions checks builds, typechecks, tests, native integration, fresh-install
+behavior, generated output, and dependency audit on pull requests and pushes.
+
+## Install
+
+```sh
+pi install npm:pi-codex-agents@beta
+```
+
+Or install a release directly from GitHub:
+
+```sh
+pi install git:github.com/sidstack/pi-codex-agents@v0.1.0-beta.1
+```
+
+Reload Pi after installation. Uninstall with `pi remove` using the same source
+spec; stop the host first. Uninstalling the package keeps native session histories
+and app state, allowing later reinstallation.
