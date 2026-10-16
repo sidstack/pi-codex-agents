@@ -15,6 +15,14 @@ Requires Linux, Node 22.19+, and Pi **>=1.3.0 <1.4.0**; 1.3.0 is the tested base
 pi install npm:pi-codex-agents@latest
 ```
 
+To test the current prerelease, install the `beta` dist-tag after it is published, or
+install the tag straight from GitHub:
+
+```sh
+pi install npm:pi-codex-agents@beta
+pi install git:github.com/sidstack/pi-codex-agents@v1.1.0-beta.1
+```
+
 Restart Pi after installation, or run `/reload` in an open Pi session.
 
 To uninstall, run `pi remove npm:pi-codex-agents`. Uninstalling keeps managed

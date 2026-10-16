@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0-beta.1 — 2026-10-16
 
 - Launch Pi in a directory and it attaches a managed session for that directory: a live
   session is resumed, a saved managed history is restored in place, otherwise one session is
