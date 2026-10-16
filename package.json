@@ -1,6 +1,6 @@
 {
   "name": "pi-codex-agents",
-  "version": "0.1.0-beta.1",
+  "version": "1.0.0",
   "description": "Native Pi extension for persistent agent sessions and a session command center",
   "type": "module",
   "engines": {
@@ -19,7 +19,12 @@
     "docs/RELEASING.md",
     "docs/SECURITY-REVIEW.md",
     "scripts/prepare.mjs",
-    "scripts/build.mjs"
+    "scripts/build.mjs",
+    "skills/pi-session-worker",
+    "skills/pi-worker-implement",
+    "skills/pi-worker-research",
+    "skills/pi-worker-review",
+    "skills/pi-worker-test"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -27,7 +32,7 @@
     "typecheck": "tsc -p tsconfig.test.json",
     "test": "vitest --run",
     "test:watch": "vitest",
-    "smoke": "node scripts/smoke-sessions.mjs && node scripts/smoke-host.mjs && node scripts/smoke-delegation.mjs && node scripts/smoke-compat.mjs && python3 scripts/smoke-extension.py",
+    "smoke": "node scripts/smoke-sessions.mjs && node scripts/smoke-host.mjs && node scripts/smoke-compat.mjs && python3 scripts/smoke-extension.py",
     "release:check": "npm run build && npm run typecheck && npm test && npm run smoke && npm run fresh-install",
     "fresh-install": "node scripts/fresh-install.mjs",
     "prepublishOnly": "npm run release:check && node scripts/publish-guard.mjs"
@@ -42,6 +47,9 @@
   "pi": {
     "extensions": [
       "./dist/extension.js"
+    ],
+    "skills": [
+      "./skills"
     ]
   },
   "peerDependencies": {
@@ -65,6 +73,6 @@
   ],
   "publishConfig": {
     "access": "public",
-    "tag": "beta"
+    "tag": "latest"
   }
 }

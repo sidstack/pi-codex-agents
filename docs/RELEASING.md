@@ -1,8 +1,8 @@
 # Releasing
 
 The project is published as `pi-codex-agents` on npm and `sidstack/pi-codex-agents`
-on GitHub. Releases use semver. Prereleases publish with npm's `beta` tag until a
-stable MVP is ready.
+on GitHub. Releases use semver. Stable releases publish with npm's `latest` tag;
+prereleases use `beta`.
 
 ## Prepare a release
 
@@ -23,13 +23,13 @@ behavior, generated output, and dependency audit on pull requests and pushes.
 ## Install
 
 ```sh
-pi install npm:pi-codex-agents@beta
+pi install npm:pi-codex-agents@latest
 ```
 
 Or install a release directly from GitHub:
 
 ```sh
-pi install git:github.com/sidstack/pi-codex-agents@v0.1.0-beta.1
+pi install git:github.com/sidstack/pi-codex-agents@v1.0.0
 ```
 
 Reload Pi after installation. Uninstall with `pi remove` using the same source

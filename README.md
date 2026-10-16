@@ -6,7 +6,7 @@ while you view another session or close your terminal.
 
 Requires Linux, Node 22.19+, and Pi **>=1.3.0 <1.4.0** (tested with 1.3.0).
 
-Version 0.1.0-beta.1 is an early release. See [releasing](docs/RELEASING.md).
+See [release instructions](docs/RELEASING.md) for package and GitHub installation.
 
 ## Install
 
@@ -22,7 +22,7 @@ npm install
 pi -e /path/to/pi-agents/dist/extension.js
 ```
 
-For persistent installation from npm, run `pi install npm:pi-codex-agents@beta`.
+For persistent installation from npm, run `pi install npm:pi-codex-agents@latest`.
 For local development, run `pi install /path/to/pi-agents`, then restart Pi
 or use `/reload`. Rebuild with `npm run build` after editing the extension.
 There is no separate pi-agents executable.
@@ -58,9 +58,9 @@ non-zero, and `showStatus: false` hides it.
 
 Native `pi_agent_spawn/list/send/inbox/wait/stop` tools create named sessions visible
 in `/agents` and provide durable two-way mail without taking over the terminal.
-The default limit is two preparing/running workers and medium thinking. A local
-stdio MCP bridge can request the same host-owned operations. See
-[native worker communication](docs/AGENT-COMMUNICATION.md).
+The default limit is two preparing/running workers and medium thinking. See
+[native worker communication](docs/AGENT-COMMUNICATION.md). The package includes
+shared worker guidance and the implement, review, test, and research role guides.
 
 ## Commands in each context
 

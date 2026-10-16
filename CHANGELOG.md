@@ -1,14 +1,15 @@
 # Changelog
 
-## 0.1.0-beta.1 — unreleased
+## 1.0.0 — 2026-10-16
 
 - Upgrade the tested SDK to Pi 1.3.0; accept stable 1.3 patch releases through the
   `>=1.3.0 <1.4.0` peer/runtime range while retaining native adapter guards.
 - Add optional native worker spawning, bounded durable two-way mail, compact
   status/waits and targeted stop, with two-worker admission and medium thinking.
-- Add a local stdio MCP control bridge and six shipped supervisor/worker role skills.
+- Add native worker tools with shared worker guidance and implement, review, test,
+  and research role guides.
 
-Initial native extension MVP published as `pi-codex-agents` from the matching GitHub repository.
+Initial stable release of the native extension under `pi-codex-agents`.
 
 - Fix disposal/navigation/shutdown races with shared stops, creation ownership,
   handoff reservations, and dialog cancellation before waiting for settlement.

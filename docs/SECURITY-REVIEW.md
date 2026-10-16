@@ -76,9 +76,6 @@ provider in one additional request, subject to normal provider billing/trust. It
 adds no tool execution, is cancelled during new work and host close, and can be
 disabled with `autoName: false`. No credentials are copied into session metadata.
 
-The local MCP bridge inherits the same trusted-UID boundary as the private host
-socket. Worker tools bind identity to their native record and restrict it to its
-parent/group; external same-UID controllers can choose controller identities and
-are not mutually isolated. Mail and worker metadata are bounded private JSON. No
-remote listener, authentication service, provider credentials, or execution worker
-is added by MCP. Role skills do not sandbox trusted code or confer publish rights.
+Worker tools bind identity to their native record and restrict it to its parent or
+group. Mail and worker metadata are bounded private JSON. Role guides do not sandbox
+trusted code or confer additional permissions.

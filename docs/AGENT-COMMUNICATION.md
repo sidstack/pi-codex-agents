@@ -1,9 +1,7 @@
 # Native worker tools
 
 Pi owns every worker runtime and native history. The optional `delegation` feature
-(enabled by default) exposes six tools in ordinary Pi and managed views. The local
-stdio MCP bridge provides the same operations to external controllers through the
-private host socket; it never starts a host or runs a model.
+(enabled by default) exposes six tools in ordinary Pi and managed views.
 
 | Tool | Behavior |
 | --- | --- |
@@ -39,7 +37,3 @@ Disable delegation with `delegation: false`; core session operations continue to
 work. Malformed delegation state fails control requests without taking down the
 core UI. Unsafe ownership and filesystem paths remain rejected by shared storage
 checks.
-
-The bridge follows the MCP 2025-11-25 stdio tools contract. Start Pi and open
-`/agents` before connecting a client. The bridge only requests operations from the
-running host through its private Unix socket.
