@@ -1,31 +1,24 @@
-# pi-agents
+# pi-codex-agents
 
 A native **Pi extension** for persistent agent sessions across projects. Pi renders
 the editor, transcript, tools, widgets, and dialogs itself. Managed agents continue
 while you view another session or close your terminal.
 
-Requires Linux, Node 22.19+, and Pi **>=1.3.0 <1.4.0** (tested with 1.3.0).
-
-See [release instructions](docs/RELEASING.md) for package and GitHub installation.
+Install the published package with Pi's package manager. See
+[release instructions](docs/RELEASING.md) for maintainer details.
 
 ## Install
 
-Install the supported Pi first. Pi **>=1.3.0 <1.4.0** is supported; 1.3.0 is the tested baseline.
+Requires Linux, Node 22.19+, and Pi **>=1.3.0 <1.4.0**; 1.3.0 is the tested baseline.
 
 ```sh
-npm install -g @earendil-works/pi-coding-agent@1.3
+pi install npm:pi-codex-agents@latest
 ```
 
-```sh
-cd /path/to/pi-agents
-npm install
-pi -e /path/to/pi-agents/dist/extension.js
-```
+Restart Pi after installation, or run `/reload` in an open Pi session.
 
-For persistent installation from npm, run `pi install npm:pi-codex-agents@latest`.
-For local development, run `pi install /path/to/pi-agents`, then restart Pi
-or use `/reload`. Rebuild with `npm run build` after editing the extension.
-There is no separate pi-agents executable.
+To uninstall, run `pi remove npm:pi-codex-agents`. Uninstalling keeps managed
+session history and app state, so they are available if you reinstall later.
 
 ## Open your sessions
 
@@ -202,7 +195,22 @@ runtimes; isolation and different per-session themes/providers need care.
 Direct process-stdio output goes to the host log. External editors and interactive
 subprocesses inheriting stdio are not supported by this Terminal transport.
 
-## Development
+## Local development
+
+Clone the extension and install its development dependencies:
+
+```sh
+git clone https://github.com/sidstack/pi-codex-agents.git
+cd pi-codex-agents
+npm ci
+npm run build
+```
+
+Load the built extension for one Pi process with `pi -e "$PWD/dist/extension.js"`,
+or install this checkout with `pi install "$PWD"` and restart Pi (or run `/reload`).
+There is no separate `pi-codex-agents` executable.
+
+## Development checks
 
 ```sh
 npm run build
@@ -215,6 +223,7 @@ Smoke checks use real Pi views, temporary state, and a deterministic local provi
 no paid calls or user configuration changes. See [architecture](docs/ARCHITECTURE.md).
 
 Optional behavior lives in independent feature modules; contributor conventions
-and dependency boundaries are in [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md). Generated `dist/` is shipped
+and dependency boundaries are in [CONTRIBUTING.md](CONTRIBUTING.md) and
+[architecture](docs/ARCHITECTURE.md). Generated `dist/` is shipped
 for Git installs without a compiler. Run `npm run release:check` for the full
 installed-package check. See [security](SECURITY.md) for trust boundaries.
