@@ -54,14 +54,6 @@ Every managed view shows a Pi status line: `sessions 6 · 1 running · 2 needs i
 1 ready · Ctrl+G`. It adds `failed`, `inactive`, and `unread` groups only when they are
 non-zero, and `showStatus: false` hides it.
 
-## Native workers
-
-Native `pi_agent_spawn/list/send/inbox/wait/stop` tools create named sessions visible
-in `/agents` and provide durable two-way mail without taking over the terminal.
-The default limit is two preparing/running workers and medium thinking. See
-[native worker communication](docs/AGENT-COMMUNICATION.md). The package includes
-shared worker guidance and the implement, review, test, and research role guides.
-
 ## Commands in each context
 
 The same `/agents` name works in two places, and each context has its own set.
@@ -124,8 +116,6 @@ Create `~/.pi/agent/pi-agents/config.json` to override these defaults:
 
 ```json
 {
-  "delegation": true,
-  "maxWorkers": 2,
   "autoName": true,
   "historyImport": true,
   "leftArrowEntry": true,

@@ -6,7 +6,6 @@ import { commandCenterKey } from "./features/navigation.js";
 import { statusParts } from "./features/status.js";
 import { attachTerminal } from "./pi/attachment.js";
 import { ensureNativeConnection, stopNativeHost } from "./pi/client.js";
-import { agentToolDefinitions } from "./agent-tools.js";
 import { VERSION, BUILD_ID } from "./version.js";
 import { countUnsettled, type ActivitySnapshot } from "./core/activity.js";
 
@@ -21,11 +20,6 @@ export default function piAgents(pi: ExtensionAPI): void {
   // Managed sessions receive their own inline /agents extension. Loading the
   // installed package there must not register a second launcher recursively.
   if (process.env.PI_AGENTS_NATIVE_DAEMON === "1") return;
-  for (const tool of agentToolDefinitions(async (operation, input, ctx) => {
-    const connection = await ensureNativeConnection(ctx.cwd, false);
-    try { return await connection.request("feature", { operation: `agents.${operation}`, input, caller: `controller:pi:${ctx.sessionManager.getSessionId()}` }); }
-    finally { connection.socket.end(); }
-  })) pi.registerTool(tool);
   let opening = false;
   let prompts = 0;
   let frontendConfig: Config | undefined;

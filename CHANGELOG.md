@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1 — 2026-10-16
+
+- Keep the package focused on the native Pi session extension. Remove worker
+  delegation tools, worker policy skills, and their host-side feature state.
+- Remove the delegation configuration options and document the extension-only
+  package contents.
+
 ## 1.0.0 — 2026-10-16
 
 - Upgrade the tested SDK to Pi 1.3.0; accept stable 1.3 patch releases through the

@@ -86,7 +86,7 @@ export async function startNativeDaemon(cwd, config = Object.freeze(loadConfig()
         // A host that predates settledStop cannot be trusted to shut itself down without
         // recording settled sessions as stopped, so the frontend will not replace it silently.
         capabilities: ["settledStop", "safeUpdate"],
-        unsettledCount: countUnsettled([...host.sessions.values()]) + host.pendingFeatureOperations,
+        unsettledCount: countUnsettled([...host.sessions.values()]),
         sessions: [...host.sessions.values()].map((r) => ({ id: r.id, name: r.name, cwd: r.cwd, activity: r.activity,
             running: r.running, prompts: r.prompts, pendingOperations: r.pendingOperations, unread: r.unread, lastError: r.lastError, sessionFile: r.sessionFile,
             sourceFile: r.sourceFile })),
@@ -193,7 +193,7 @@ export async function startNativeDaemon(cwd, config = Object.freeze(loadConfig()
         const row = host.sessions.get(host.activeId);
         if (!row?.context || ending)
             return;
-        const busy = countUnsettled([...host.sessions.values()]) + host.pendingFeatureOperations;
+        const busy = countUnsettled([...host.sessions.values()]);
         if (busy && !await row.context.ui.confirm("Restart the agent host?", `${busy} session(s) are running or waiting. Restarting aborts their runs and disposes pending dialogs.`))
             return;
         await stopAll({ restart: true });
@@ -409,12 +409,7 @@ export async function startNativeDaemon(cwd, config = Object.freeze(loadConfig()
                         return;
                     }
                     let result;
-                    if (message.type === "feature") {
-                        if (typeof message.operation !== "string" || typeof message.caller !== "string" || !/^controller:[a-zA-Z0-9._:-]{1,100}$/.test(message.caller) || !message.input || typeof message.input !== "object" || Array.isArray(message.input))
-                            throw new Error("Invalid feature request");
-                        result = await host.featureRequest(message.operation, message.input, message.caller);
-                    }
-                    else if (message.type === "status") {
+                    if (message.type === "status") {
                         await host.refreshFeatures();
                         result = snapshot();
                     }
@@ -433,7 +428,7 @@ export async function startNativeDaemon(cwd, config = Object.freeze(loadConfig()
                     }
                     else if (message.type === "stop") {
                         // An automatic build update may only stop a host that owns nothing unsettled.
-                        const busy = countUnsettled([...host.sessions.values()]) + host.pendingFeatureOperations;
+                        const busy = countUnsettled([...host.sessions.values()]);
                         if (message.onlyIfSettled === true && (busy || attached || initializing)) {
                             write(socket, { type: "response", id: message.id, success: false, error: busy ? `${busy} session(s) are running or waiting` : attached ? "A frontend terminal is attached" : "Native session startup is still in progress" });
                             return;

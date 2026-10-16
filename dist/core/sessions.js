@@ -78,17 +78,6 @@ export class NativeSessionHost extends NativeFleet {
                 this.featureCleanup.push(cleanup);
         }
     }
-    get pendingFeatureOperations() { return this.features.reduce((total, feature) => total + (feature.pending?.(this) ?? 0), 0); }
-    featureRequest(operation, input, caller) {
-        if (this.closing)
-            return Promise.reject(new Error("The session host is closing"));
-        for (const feature of this.features) {
-            const result = feature.request?.(this, operation, input, caller);
-            if (result)
-                return result;
-        }
-        return Promise.reject(new Error(`Host feature is unavailable: ${operation}. Enable the feature and use /agents restart when work is settled.`));
-    }
     async refreshFeatures() {
         for (const feature of this.features)
             await feature.refresh?.(this);
@@ -571,9 +560,6 @@ export class NativeSessionHost extends NativeFleet {
     }
 }
 function install(pi, host, record) {
-    for (const feature of host.features)
-        for (const tool of feature.tools?.(host, record) ?? [])
-            pi.registerTool(tool);
     pi.registerCommand("agents", {
         description: "Native session command center; /agents new [directory]",
         handler: async (args, ctx) => {

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 export const DEFAULT_CONFIG = Object.freeze({
-    delegation: true, maxWorkers: 2, autoName: true, historyImport: true, leftArrowEntry: true, commandCenterShortcut: true,
+    autoName: true, historyImport: true, leftArrowEntry: true, commandCenterShortcut: true,
     sessionCycling: true, showStatus: true, autoInactive: true, autoUpdateHost: true,
     boardFullscreen: true, idleTimeoutMs: 3_600_000,
 });
@@ -27,12 +27,7 @@ export function loadConfig(agentDir = getAgentDir()) {
     for (const [key, value] of Object.entries(raw)) {
         if (!Object.hasOwn(config, key))
             throw new Error(`Unknown pi-agents config option: ${key}`);
-        if (key === "maxWorkers") {
-            if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > 32)
-                throw new Error("maxWorkers must be an integer from 1 to 32");
-            config.maxWorkers = value;
-        }
-        else if (key === "idleTimeoutMs") {
+        if (key === "idleTimeoutMs") {
             if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0)
                 throw new Error("idleTimeoutMs must be a non-negative integer");
             config.idleTimeoutMs = value;

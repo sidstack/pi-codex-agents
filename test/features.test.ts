@@ -7,7 +7,7 @@ import { commandCenterKey } from "../src/features/navigation.js";
 import { statusParts } from "../src/features/status.js";
 import type { SessionFeature } from "../src/features/contracts.js";
 
-const disabled = { ...DEFAULT_CONFIG, delegation: false, autoName: false, historyImport: false, leftArrowEntry: false,
+const disabled = { ...DEFAULT_CONFIG, autoName: false, historyImport: false, leftArrowEntry: false,
   commandCenterShortcut: false, sessionCycling: false, showStatus: false, autoInactive: false };
 
 afterEach(() => { vi.useRealTimers(); });
@@ -28,7 +28,7 @@ describe("optional feature assembly", () => {
   });
 
   it("assembles independently enabled blocks", () => {
-    expect(configuredFeatures(DEFAULT_CONFIG).map((feature) => feature.id)).toEqual(["delegation", "naming", "history", "inactivity", "navigation", "status"]);
+    expect(configuredFeatures(DEFAULT_CONFIG).map((feature) => feature.id)).toEqual(["naming", "history", "inactivity", "navigation", "status"]);
     expect(configuredFeatures({ ...disabled, historyImport: true }).map((feature) => feature.id)).toEqual(["history"]);
     expect(configuredFeatures({ ...disabled, showStatus: true }).map((feature) => feature.id)).toEqual(["status"]);
   });

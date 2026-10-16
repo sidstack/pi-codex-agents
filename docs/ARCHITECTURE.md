@@ -140,14 +140,6 @@ and 4 MiB inbound; socket backlog is bounded to 2 MiB and pending requests to 64
 The host permits at most 32 connections. A limit-induced socket loss is an error,
 never a claim that background execution succeeded.
 
-Optional delegation supplies public native tool definitions and a bounded request
-handler through the feature contract. The core registers tools and dispatches
-validated private control requests without importing the implementation. Feature
-preparation reservations contribute to atomic update safety. Cleanup cancels waits,
-marks the feature closed and awaits its owned requests/tasks after native abort
-and dialog cancellation, before host ownership is released. See
-[communication](AGENT-COMMUNICATION.md) for admission, roles and mailbox bounds.
-
 The tested SDK is now Pi 1.3.0. Peers and bootstrap/runtime checks accept stable
 1.3 patch releases (>=1.3.0 <1.4.0); private adapter method guards remain in force.
 Development and fresh-install tests pin a reproducible baseline.

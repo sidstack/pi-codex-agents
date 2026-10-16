@@ -177,7 +177,7 @@ try {
   pass("explicit stop disposes only the selected child");
 
   await host.close();
-  const disabled = { ...DEFAULT_CONFIG, delegation: false, autoName: false, historyImport: false, commandCenterShortcut: false,
+  const disabled = { ...DEFAULT_CONFIG, autoName: false, historyImport: false, commandCenterShortcut: false,
     leftArrowEntry: false, sessionCycling: false, showStatus: false, autoInactive: false };
   const coreTerminals = [];
   coreHost = new NativeSessionHost(agentDir, () => { const terminal = new FakeTerminal(); coreTerminals.push(terminal); return terminal; }, disabled, []);

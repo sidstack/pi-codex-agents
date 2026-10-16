@@ -75,7 +75,3 @@ Automatic naming sends up to 2,000 characters of the first message to the select
 provider in one additional request, subject to normal provider billing/trust. It
 adds no tool execution, is cancelled during new work and host close, and can be
 disabled with `autoName: false`. No credentials are copied into session metadata.
-
-Worker tools bind identity to their native record and restrict it to its parent or
-group. Mail and worker metadata are bounded private JSON. Role guides do not sandbox
-trusted code or confer additional permissions.
