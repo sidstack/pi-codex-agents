@@ -9,7 +9,7 @@ import { connectNative, type NativeConnection } from "../src/pi/client.js";
 import { attachTerminal } from "../src/pi/attachment.js";
 
 /** How the fake host ends the attachment after answering attach/open. */
-type Ending = "drop" | "garbage" | "detached" | "quit" | "stopped";
+type Ending = "drop" | "garbage" | "detached" | "quit" | "stopped" | "attach-only" | "launch-error";
 
 interface FakeHost {
   socketPath: string;
@@ -39,9 +39,16 @@ async function listenFakeHost(ending: Ending): Promise<FakeHost> {
       const message = raw as Record<string, unknown>;
       requests.push(message);
       if (socket.destroyed) return;
-      const answer = encodeJsonl({ type: "response", id: message.id, success: true, result: { answered: String(message.type) } });
-      if (message.type !== "open") { socket.write(answer); return; }
-      if (ending === "detached") { socket.write(answer); socket.write(encodeJsonl({ type: "detached", reason: "Left the session view; sessions kept running." }), () => socket.end()); }
+      const answer = encodeJsonl({ type: "response", id: message.id, success: true, result: message.type === "attach" && ending === "launch-error"
+        ? { answered: "attach", launchError: "Could not open a session for /tmp/gone: Not a directory" }
+        : { answered: String(message.type) } });
+      if (message.type !== "open") {
+        socket.write(answer);
+        // A session-only attachment never sends open, so these hosts detach on attach.
+        if (ending === "launch-error" || ending === "attach-only") socket.write(encodeJsonl({ type: "detached", reason: "Returned to Pi." }), () => socket.end());
+        return;
+      }
+      if (ending === "detached" || ending === "launch-error" || ending === "attach-only") { socket.write(answer); socket.write(encodeJsonl({ type: "detached", reason: "Left the session view; sessions kept running." }), () => socket.end()); }
       else if (ending === "quit") { socket.write(answer); socket.write(encodeJsonl({ type: "detached", reason: "Host is quitting the frontend Pi.", quitFrontend: true }), () => socket.end()); }
       else if (ending === "stopped") { socket.write(answer); socket.write(encodeJsonl({ type: "stopped", quitFrontend: true, restart: true }), () => socket.end()); }
       else if (ending === "garbage") { socket.write(answer); socket.write("not a native record\n", () => socket.destroy()); }
@@ -77,14 +84,14 @@ function fakeTerminal(): { terminal: Terminal; calls: string[] } {
   return { terminal, calls };
 }
 
-async function runAttachment(ending: Ending): Promise<{ result?: Awaited<ReturnType<typeof attachTerminal>>; error?: Error; calls: string[]; requests: Record<string, unknown>[]; connection: NativeConnection }> {
+async function runAttachment(ending: Ending, options: Parameters<typeof attachTerminal>[2] = {}): Promise<{ result?: Awaited<ReturnType<typeof attachTerminal>>; error?: Error; calls: string[]; requests: Record<string, unknown>[]; connection: NativeConnection }> {
   const host = await listenFakeHost(ending);
   hosts.push(host);
   const { terminal, calls } = fakeTerminal();
   const connection = await connectNative(host.socketPath);
   const outcome: { result?: Awaited<ReturnType<typeof attachTerminal>>; error?: Error } = {};
   try {
-    outcome.result = await attachTerminal(connection, terminal);
+    outcome.result = await attachTerminal(connection, terminal, options);
   } catch (error) {
     outcome.error = error instanceof Error ? error : new Error(String(error));
   }
@@ -148,5 +155,22 @@ describe("terminal attachment", () => {
       restartHost: true,
     });
     expect(outcome.calls).toEqual(["start:function:function", "setProgress:false", "stop"]);
+  });
+
+  it("attaches a session view without requesting the command center", async () => {
+    const outcome = await runAttachment("attach-only", { openBoard: false, launchCwd: "/tmp/project" });
+
+    expect(outcome.error).toBeUndefined();
+    // No open request: attaching alone shows the session.
+    expect(outcome.requests.map((message) => message.type)).toEqual(["attach"]);
+    expect(outcome.requests[0]).toMatchObject({ launchCwd: "/tmp/project", takeover: false, columns: 90, rows: 24 });
+    expect(outcome.result).toEqual({ reason: "Returned to Pi.", quitFrontend: false, restartHost: false });
+  });
+
+  it("reports a launch failure the host answered with", async () => {
+    const outcome = await runAttachment("launch-error", { openBoard: false, launchCwd: "/tmp/gone" });
+
+    expect(outcome.error).toBeUndefined();
+    expect(outcome.result?.launchError).toContain("Could not open a session for /tmp/gone");
   });
 });

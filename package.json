@@ -26,7 +26,7 @@
     "typecheck": "tsc -p tsconfig.test.json",
     "test": "vitest --run",
     "test:watch": "vitest",
-    "smoke": "node scripts/smoke-sessions.mjs && node scripts/smoke-host.mjs && node scripts/smoke-compat.mjs && python3 scripts/smoke-extension.py",
+    "smoke": "node scripts/smoke-sessions.mjs && node scripts/smoke-host.mjs && node scripts/smoke-compat.mjs && python3 scripts/smoke-extension.py && python3 scripts/smoke-launch.py",
     "release:check": "npm run build && npm run typecheck && npm test && npm run smoke && npm run fresh-install",
     "fresh-install": "node scripts/fresh-install.mjs",
     "prepublishOnly": "npm run release:check && node scripts/publish-guard.mjs"

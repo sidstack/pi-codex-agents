@@ -1,8 +1,19 @@
 import type { Terminal } from "@earendil-works/pi-tui";
 import type { NativeConnection } from "./client.js";
 
+export interface AttachOptions {
+  /** Move the terminal here from another frontend that already holds it. */
+  takeover?: boolean;
+  /** Show the command center after attaching. Default true. */
+  openBoard?: boolean;
+  /** The frontend's own directory, so the host can show a session for it. */
+  launchCwd?: string;
+}
+
 export interface AttachmentResult {
   reason: string;
+  /** The host could not open a session for the frontend's own directory. */
+  launchError?: string;
   /** The host chose an action that must also end the frontend Pi process. */
   quitFrontend: boolean;
   /** The host replaced itself; the frontend must start the current build and reconnect. */
@@ -12,7 +23,7 @@ export interface AttachmentResult {
 const METHODS = new Set(["write", "moveBy", "hideCursor", "showCursor", "clearLine", "clearFromCursor", "clearScreen", "setTitle", "setProgress", "setProgramStatus"]);
 
 /** Temporarily lends the physical terminal to the persistent host. */
-export async function attachTerminal(connection: NativeConnection, terminal: Terminal, takeover = false): Promise<AttachmentResult> {
+export async function attachTerminal(connection: NativeConnection, terminal: Terminal, options: AttachOptions = {}): Promise<AttachmentResult> {
   let started = false;
   let reason = "Returned to Pi. Managed sessions keep running.";
   let quitFrontend = false;
@@ -42,14 +53,19 @@ export async function attachTerminal(connection: NativeConnection, terminal: Ter
   };
   connection.onEvent = (message) => { if (started) display(message); else buffered.push(message); };
   try {
-    await connection.request("attach", { columns: terminal.columns, rows: terminal.rows, kitty: terminal.kittyProtocolActive, takeover });
+    const attachment = await connection.request("attach", {
+      columns: terminal.columns, rows: terminal.rows, kitty: terminal.kittyProtocolActive,
+      takeover: options.takeover === true,
+      ...(options.launchCwd ? { launchCwd: options.launchCwd } : {}),
+    }) as { launchError?: unknown } | undefined;
     if (connection.socket.destroyed) throw new Error("Session host disconnected during attachment");
     terminal.start((data) => connection.send({ type: "input", data, kitty: terminal.kittyProtocolActive }),
       () => connection.send({ type: "resize", columns: terminal.columns, rows: terminal.rows, kitty: terminal.kittyProtocolActive }));
     started = true;
     for (const message of buffered) display(message);
     buffered.length = 0;
-    await connection.request("open");
+    // Attaching shows a session; the board is an explicit follow-up request.
+    if (options.openBoard !== false) await connection.request("open");
     await closed;
     if (!verdict) {
       throw new Error(
@@ -59,7 +75,7 @@ export async function attachTerminal(connection: NativeConnection, terminal: Ter
         transportError ? { cause: transportError } : undefined,
       );
     }
-    return { reason, quitFrontend, restartHost };
+    return { reason, ...(typeof attachment?.launchError === "string" ? { launchError: attachment.launchError } : {}), quitFrontend, restartHost };
   } finally {
     connection.onEvent = () => {};
     connection.socket.off("error", noteTransportError);

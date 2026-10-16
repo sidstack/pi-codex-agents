@@ -5,6 +5,7 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 export interface Config {
   historyImport: boolean;
   autoName: boolean;
+  autoAttach: boolean;
   leftArrowEntry: boolean;
   commandCenterShortcut: boolean;
   sessionCycling: boolean;
@@ -16,7 +17,7 @@ export interface Config {
 }
 
 export const DEFAULT_CONFIG: Readonly<Config> = Object.freeze({
-  autoName: true, historyImport: true, leftArrowEntry: true, commandCenterShortcut: true,
+  autoName: true, historyImport: true, autoAttach: true, leftArrowEntry: true, commandCenterShortcut: true,
   sessionCycling: true, showStatus: true, autoInactive: true, autoUpdateHost: true,
   boardFullscreen: true, idleTimeoutMs: 3_600_000,
 });

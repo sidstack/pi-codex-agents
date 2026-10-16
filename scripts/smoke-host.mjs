@@ -135,9 +135,10 @@ try {
   await restart.request("attach", attachedFields);
   await restart.request("open");
   await wait(400);
-  key(restart, "\x0e");                       // Ctrl+N in the command center
-  await wait(400);
+  key(restart, "\x10");                       // Ctrl+P in the command center: choose a directory
+  await wait(600);
   key(restart, gamma);
+  await wait(300);
   key(restart, "\r");
   await wait(1500);
   const gammaId = (await restart.request("status")).sessions.find((row) => row.cwd === gamma)?.id;

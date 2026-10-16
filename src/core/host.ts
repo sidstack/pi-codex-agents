@@ -295,7 +295,21 @@ export async function startNativeDaemon(cwd: string, config: Readonly<Config> = 
     attached = socket;
     host.foregroundVisible = true;
     hub.dimensions(Number(message.columns) || 100, Number(message.rows) || 30, Boolean(message.kitty));
-    write(socket, { type: "response", id: message.id, success: true, result: snapshot() });
+    // A frontend launches Pi in a directory, so the host shows a session for that
+    // directory instead of whatever another frontend last looked at. A failure here
+    // never breaks the attachment: the previous foreground session stays usable.
+    const launchCwd = typeof message.launchCwd === "string" && message.launchCwd.startsWith("/") ? message.launchCwd : undefined;
+    let launchError: string | undefined;
+    if (launchCwd) {
+      try {
+        const target = await host.ensureSessionForCwd(launchCwd, trusted);
+        if (target !== host.activeId) await host.activate(target);
+      } catch (error) {
+        launchError = `Could not open a session for ${launchCwd}: ${error instanceof Error ? error.message : String(error)}`;
+        console.error(launchError);
+      }
+    }
+    write(socket, { type: "response", id: message.id, success: true, result: { ...snapshot(), launchError } });
     const row = host.sessions.get(host.activeId)!;
     row.unread = false;
     row.view!.lease.enabled = true;

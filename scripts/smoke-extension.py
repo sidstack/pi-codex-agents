@@ -22,6 +22,10 @@ with tempfile.TemporaryDirectory(prefix="pi-agents-extension-") as temp:
     for directory in (agent, alpha, beta):
         directory.mkdir()
     (agent / "settings.json").write_text(json.dumps({"quietStartup": True, "tui": {"mode": "fullscreen"}}))
+    # These scenarios start in ordinary Pi and enter the host by key press, so the
+    # launch attachment default is switched off here. scripts/smoke-launch.py covers it on.
+    (agent / "pi-agents").mkdir()
+    (agent / "pi-agents" / "config.json").write_text(json.dumps({"autoAttach": False}))
     env = {**os.environ, "PI_CODING_AGENT_DIR": str(agent), "PI_AGENTS_NATIVE_DIR": str(root / "host"),
            "PI_AGENTS_IDLE_MS": "1500", "PI_OFFLINE": "1", "TERM": "xterm-256color"}
     env.pop("PI_AGENTS_NATIVE_DAEMON", None)
@@ -120,7 +124,7 @@ with tempfile.TemporaryDirectory(prefix="pi-agents-extension-") as temp:
         mark = len(output)
         send("\x07")
         expect("Agent command center", mark)
-        send("\x0e")
+        send("\x10")                       # Ctrl+P: a new session in another directory
         expect("New native session", mark)
         send(str(beta))
         mark = len(output)

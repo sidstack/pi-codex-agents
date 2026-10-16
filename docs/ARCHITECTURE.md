@@ -94,12 +94,32 @@ The picker offers three filters: **Active** (ready, running, waiting, and failed
 that still hold a runtime), **Inactive** (unloaded after the idle timeout or explicitly
 stopped history), and **All**. Active is selected when the command center opens.
 
+The board owns its keys: Ctrl+N creates a session in the directory being viewed with no
+prompt, and Ctrl+P (Ctrl+Shift+N where the terminal distinguishes it) opens a separate
+directory choice. That choice lists this directory, the projects the fleet and history
+discovery already know, and completions for what the user types, resolving `~` and relative
+paths against the session it was opened from. Listings are bounded (200 entries, a short
+cache) and an unreadable directory completes nothing instead of failing. Cancelling it
+creates nothing. Every host-owned dialog, the board and this picker alike, is counted so it
+never reports its own session as needing input or routes its keys to a feature.
+
 The `/agents` command is registered twice, once per context, and each registration offers
 only the commands that context can honor. The frontend registration in `src/extension.ts`
 runs in ordinary Pi: open, `takeover`, `status`, `stop`, and `restart`; `leave` reports that
 this Pi is already detached. The host-side registration inside every managed view offers
 open, `new [directory]`, `status`, `stop` (which stops the host and returns the original Pi),
 `restart`, `leave`, and reports `takeover` as already attached. Session creation and terminal handoff use the core lifecycle operations.
+
+Attaching shows a session; the command center is a separate, explicit request. An attach can
+carry the frontend's own directory, and the host then makes that directory's session the
+foreground one: a live session for it, otherwise a saved managed history resumed in place,
+otherwise a new session. It never adds a duplicate for a directory that already has one. A
+directory whose history is unreachable is marked failed and a usable session starts instead,
+and the frontend reports the failure rather than attaching silently. The frontend attaches
+on Pi startup when `autoAttach` is enabled (default), once per frontend process and only for
+its first session, so a later `/new`, resume, or `/reload` in ordinary Pi keeps that Pi's
+terminal. `autoAttach` is frontend configuration only: the host serves the same attach
+whether a frontend asked for it or the user pressed `/agents`.
 
 Optional behavior implements `SessionFeature` in `src/features/contracts.ts`.
 `configuredFeatures` is the single assembly point. The core accepts a feature list

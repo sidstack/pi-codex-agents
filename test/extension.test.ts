@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -9,7 +9,7 @@ vi.mock("../src/pi/client.js", () => ({ ensureNativeConnection: ensure, stopNati
 vi.mock("../src/pi/attachment.js", () => ({ attachTerminal: attach }));
 import extension from "../src/extension.js";
 
-function fixture() {
+function fixture(event: { reason?: string } = {}) {
   const handlers = new Map<string, (event: unknown, ctx: ExtensionContext) => void>();
   const commands = new Map<string, { handler: (args: string, ctx: ExtensionContext) => Promise<void> }>();
   const api = {
@@ -34,8 +34,8 @@ function fixture() {
   ensure.mockResolvedValue({ socket });
   attach.mockResolvedValue({ reason: "Returned to Pi", quitFrontend: false });
   extension(api as unknown as ExtensionAPI);
-  handlers.get("session_start")?.({}, ctx);
-  return { api, commands, ctx, tui, socket, key: (data: string) => listener?.(data) };
+  handlers.get("session_start")?.(event, ctx);
+  return { api, commands, ctx, tui, socket, key: (data: string) => listener?.(data), handlers };
 }
 
 // The launcher reads ambient Pi state and its own daemon marker, so each case
@@ -143,5 +143,43 @@ describe("Pi extension entry point", () => {
       if (previous === undefined) delete process.env.PI_AGENTS_NATIVE_DAEMON;
       else process.env.PI_AGENTS_NATIVE_DAEMON = previous;
     }
+  });
+});
+
+describe("launching Pi in a directory", () => {
+  it("attaches a managed session for that directory without opening the board", async () => {
+    const { ctx } = fixture({ reason: "startup" });
+    await vi.waitFor(() => expect(attach).toHaveBeenCalledOnce());
+    expect(ensure).toHaveBeenCalledWith(ctx.cwd, true, expect.any(String), expect.objectContaining({ autoUpdateHost: true }));
+    expect(attach).toHaveBeenCalledWith(expect.anything(), expect.anything(), { openBoard: false, launchCwd: ctx.cwd });
+  });
+
+  it("attaches once: a later /new, resume, or reload leaves ordinary Pi alone", async () => {
+    const { ctx, handlers } = fixture({ reason: "startup" });
+    await vi.waitFor(() => expect(attach).toHaveBeenCalledOnce());
+    for (const reason of ["new", "resume", "reload", "startup"]) {
+      handlers.get("session_start")?.({ reason }, ctx);
+      await new Promise((done) => setTimeout(done, 10));
+    }
+    expect(attach).toHaveBeenCalledOnce();
+  });
+
+  it("stays in ordinary Pi at startup when autoAttach is off", async () => {
+    writeFileSync(join(process.env.PI_AGENTS_DIR!, "config.json"), JSON.stringify({ autoAttach: false }));
+    fixture({ reason: "startup" });
+    await new Promise((done) => setTimeout(done, 50));
+    expect(attach).not.toHaveBeenCalled();
+  });
+
+  it("reports a launch failure instead of attaching silently", async () => {
+    attach.mockResolvedValueOnce({ reason: "Returned to Pi.", quitFrontend: false, launchError: "Could not open a session for /tmp/project: Not a directory" });
+    const { ctx } = fixture({ reason: "startup" });
+    await vi.waitFor(() => expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("Could not open a session"), "error"));
+  });
+
+  it("keeps manual /agents opening the command center", async () => {
+    const { commands, ctx } = fixture();
+    await commands.get("agents")!.handler("", ctx);
+    expect(attach).toHaveBeenCalledWith(expect.anything(), expect.anything(), { takeover: false });
   });
 });

@@ -22,12 +22,18 @@ session history and app state, so they are available if you reinstall later.
 
 ## Open your sessions
 
+Launching Pi in a directory attaches it to a managed session **for that directory**: an
+existing session for it is resumed, otherwise one is created. You land in that session's
+editor, not in the command center. Set `autoAttach: false` to keep ordinary Pi at startup
+and enter the host yourself with `/agents` or Left Arrow.
+
 | Control | Action |
 | --- | --- |
 | /agents or Ctrl+G | Open the command center |
 | Left Arrow, editor empty | Open the command center; drafts retain normal cursor movement |
 | Enter | Open selected session; automatically restore inactive sessions |
-| Ctrl+N | Create a session in another directory |
+| Ctrl+N | Create a session in the directory you are viewing |
+| Ctrl+P | Create a session in another directory, chosen from recent projects and completions |
 | Ctrl+Alt+N / Ctrl+Alt+P | Cycle live views, including over pending dialogs |
 | Tab / Shift+Tab | Filter Active, Inactive, All |
 | Type | Search sessions and projects |
@@ -111,6 +117,7 @@ Create `~/.pi/agent/pi-agents/config.json` to override these defaults:
 {
   "autoName": true,
   "historyImport": true,
+  "autoAttach": true,
   "leftArrowEntry": true,
   "commandCenterShortcut": true,
   "sessionCycling": true,
@@ -128,6 +135,19 @@ variable `PI_AGENTS_IDLE_MS` overrides `idleTimeoutMs`; `0` disables inactivity.
 Disabling history import hides untouched foreign histories and keeps managed copies.
 Disabling every optional feature still leaves `/agents`, creation, switching,
 restoration, terminal attachment, and explicit stop available.
+
+`autoAttach: false` leaves the Pi you launched in ordinary Pi; the host still starts on the
+first `/agents`, and every other control above is unchanged.
+
+## Choosing a directory for a new session
+
+Ctrl+N in the command center starts a session in the directory you are viewing, with no
+prompt. Ctrl+P (also Ctrl+Shift+N where the terminal distinguishes it) opens a directory
+choice that lists this directory, your recent projects, and completions for what you type:
+`~`, a relative path, a partial name, or a full path. ↑/↓ select, Tab completes the
+selection into the input, Enter chooses, and Esc cancels without creating anything.
+Directories that already hold a session are marked `existing`, so a project is never opened
+twice by accident. `/agents new [directory]` does the same thing from the command line.
 
 ## Return to Pi and reconnect
 

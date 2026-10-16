@@ -2,7 +2,6 @@ import { realpath, stat, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { basename, join, resolve } from "node:path";
-import { homedir } from "node:os";
 import {
   createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices,
   getPackageDir, hasTrustRequiringProjectResources, InteractiveMode, ProjectTrustStore, SessionManager, SettingsManager,
@@ -11,10 +10,11 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { type Terminal, type TUI } from "@earendil-works/pi-tui";
 import { CommandCenter, commandCenterSize, type BoardAction } from "../ui/board.js";
+import { PathPicker, expandDirectory, type PickerProject } from "../ui/path-picker.js";
 import { isNavigable, NativeFleet, type LiveSession, type NativeView } from "./fleet.js";
 import { loadConfig, type Config } from "../config.js";
 import type { SessionFeature } from "../features/contracts.js";
-import { privateDirectory } from "./security.js";
+import { privateDirectory, assertManagedFile } from "./security.js";
 import { TerminalLease } from "./terminal.js";
 import { nativePromptCancellation } from "./native-prompts.js";
 import { PI_VERSION_RANGE, supportedPiVersion } from "../pi-version.js";
@@ -59,6 +59,8 @@ export function checkNativeVersion(): void {
 export class NativeSessionHost extends NativeFleet {
   declare readonly sessions: Map<string, Session>;
   private boardOpen = false;
+  /** Host-owned dialogs (board, directory picker) never count as a session needing input. */
+  private hostPrompts = 0;
   private creating = false;
   private closing = false;
   private closeTask?: Promise<void>;
@@ -112,8 +114,8 @@ export class NativeSessionHost extends NativeFleet {
     return undefined;
   }
 
-  isBoardPrompt(record: LiveSession, kind: string): boolean {
-    return this.boardOpen && record.id === this.activeId && kind === "custom";
+  isHostPrompt(record: LiveSession, kind: string): boolean {
+    return this.hostPrompts > 0 && record.id === this.activeId && kind === "custom";
   }
 
   bind(record: Session, ctx: ExtensionContext): void {
@@ -149,6 +151,7 @@ export class NativeSessionHost extends NativeFleet {
     if (!ctx.hasUI) throw new Error("/agents requires native interactive Pi");
     if (this.boardOpen || this.creating || this.closing) return;
     this.boardOpen = true;
+    this.hostPrompts++;
     let action: BoardAction | undefined;
     try {
       await this.refreshFeatures();
@@ -162,13 +165,16 @@ export class NativeSessionHost extends NativeFleet {
       } });
     } finally {
       this.boardOpen = false;
+      this.hostPrompts--;
     }
     if (action?.kind === "switch") {
       const record = this.sessions.get(action.id);
       if (record && !record.view) await this.onRecover?.(record, ctx);
       else await this.activate(action.id);
     }
-    if (action?.kind === "new") await this.createFromUI(ctx);
+    // Ctrl+N starts a session in the directory being viewed; Ctrl+P picks another one.
+    if (action?.kind === "new") await this.createFromUI(ctx, ctx.cwd);
+    if (action?.kind === "pick") await this.createFromUI(ctx);
     if (action?.kind === "exit") await this.onExit?.();
     if (action?.kind === "leave") await this.onLeave?.();
     if (action?.kind === "abort") await this.abort(action.id);
@@ -186,19 +192,70 @@ export class NativeSessionHost extends NativeFleet {
     if (this.creating) return;
     this.creating = true;
     try {
-      const entered = directory ?? await ctx.ui.input("New native session · directory", ctx.cwd);
+      const entered = directory ?? await this.pickDirectory(ctx);
       if (entered === undefined) return;
-      const cwd = await realpath(resolve(ctx.cwd, entered.trim().replace(/^~(?=\/|$)/, homedir()) || ctx.cwd));
-      if (!(await stat(cwd)).isDirectory()) throw new Error(`Not a directory: ${cwd}`);
-      const trusted = cwd === ctx.cwd ? ctx.isProjectTrusted() : new ProjectTrustStore(this.agentDir).get(cwd) === true;
-      if (!trusted && hasTrustRequiringProjectResources(cwd)) {
-        ctx.ui.notify(`Project resources are untrusted in ${cwd}; only trusted/global resources will load. Trust configuration is unchanged.`, "info");
-      }
-      const record = await this.create(cwd, trusted, ctx);
-      await this.activate(record.id);
+      await this.createAt(ctx, entered);
     } finally {
       this.creating = false;
     }
+  }
+
+  /** Open a managed session in a directory the user chose, resolving `~` and relative paths. */
+  async createAt(ctx: ExtensionContext, directory: string): Promise<void> {
+    const cwd = await realpath(expandDirectory(directory, ctx.cwd));
+    if (!(await stat(cwd)).isDirectory()) throw new Error(`Not a directory: ${cwd}`);
+    const trusted = cwd === ctx.cwd ? ctx.isProjectTrusted() : new ProjectTrustStore(this.agentDir).get(cwd) === true;
+    if (!trusted && hasTrustRequiringProjectResources(cwd)) {
+      ctx.ui.notify(`Project resources are untrusted in ${cwd}; only trusted/global resources will load. Trust configuration is unchanged.`, "info");
+    }
+    const record = await this.create(cwd, trusted, ctx);
+    await this.activate(record.id);
+  }
+
+  /** A searchable directory choice: recent projects, the typed path, and filesystem completion. */
+  private async pickDirectory(ctx: ExtensionContext): Promise<string | undefined> {
+    const projects: PickerProject[] = [...this.sessions.values()]
+      .filter((row) => !row.stopping)
+      .map((row) => ({ cwd: row.cwd, name: row.name, activity: row.activity, lastActivityAt: row.lastActivityAt ?? 0 }));
+    this.hostPrompts++;
+    try {
+      return await ctx.ui.custom<string | undefined>((ui, theme, _keys, done) =>
+        new PathPicker(projects, ctx.cwd, theme, () => ui.requestRender(), done, () => ui.terminal.rows, this.config.boardFullscreen), {
+        overlay: true,
+        overlayOptions: () => {
+          const view = this.sessions.get(this.activeId)?.view;
+          const size = commandCenterSize(view?.ui.terminal.columns ?? 80, view?.ui.terminal.rows ?? 24, this.config.boardFullscreen);
+          return { width: size.width, maxHeight: size.height, anchor: "center", row: "50%", col: "50%" };
+        },
+      });
+    } finally {
+      this.hostPrompts--;
+    }
+  }
+
+  /**
+   * The session a frontend should show for its own directory: a live one for that
+   * directory, a saved one resumed in place, or a new one. Never a duplicate.
+   */
+  async ensureSessionForCwd(cwd: string, isTrusted: (directory: string) => boolean): Promise<string> {
+    const rows = [...this.sessions.values()].filter((row) => row.cwd === cwd);
+    const live = rows.filter(isNavigable).sort((a, b) => (b.lastActivityAt ?? 0) - (a.lastActivityAt ?? 0));
+    if (live[0]) return live[0].id;
+    const saved = rows.filter((row) => !row.view && !row.stopping && row.sessionFile)
+      .sort((a, b) => (b.lastActivityAt ?? 0) - (a.lastActivityAt ?? 0))[0];
+    if (saved?.sessionFile) {
+      try {
+        assertManagedFile(join(this.agentDir, "sessions"), saved.sessionFile);
+        const resumed = await this.create(cwd, isTrusted(cwd), undefined, {
+          id: saved.id, name: saved.name, sessionFile: saved.sessionFile, sourceFile: saved.sourceFile, draft: saved.draft,
+        });
+        return resumed.id;
+      } catch (error) {
+        this.fail(saved, error);
+      }
+    }
+    const created = await this.create(cwd, isTrusted(cwd));
+    return created.id;
   }
 
   create(cwd: string, trusted: boolean, parent?: ExtensionContext, options: NativeSessionOptions = {}): Promise<Session> {
@@ -509,10 +566,10 @@ function install(pi: ExtensionAPI, host: NativeSessionHost, record: Session): vo
   });
   pi.on("agent_settled", (_event, ctx) => { host.settled(record, ctx); });
   pi.on("ui_prompt_start", (event) => {
-    if (!host.isBoardPrompt(record, event.kind)) host.event(record, "prompt-start");
+    if (!host.isHostPrompt(record, event.kind)) host.event(record, "prompt-start");
   });
   pi.on("ui_prompt_end", (event) => {
-    if (!host.isBoardPrompt(record, event.kind)) host.event(record, "prompt-end");
+    if (!host.isHostPrompt(record, event.kind)) host.event(record, "prompt-end");
   });
   // Native replacement tears down a live runtime and can open a second writer.
   // Navigation and creation must go through the fleet in pi-agents.

@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Launch Pi in a directory and it attaches a managed session for that directory: a live
+  session is resumed, a saved managed history is restored in place, otherwise one session is
+  created. Attaching no longer forces the command center open. `autoAttach: false` restores
+  the previous startup, where ordinary Pi waits for `/agents` or Left Arrow.
+- Ctrl+N in the command center now starts a session in the directory being viewed with no
+  prompt. Ctrl+P (and Ctrl+Shift+N where the terminal distinguishes it) opens a directory
+  choice with this directory, recent projects, and bounded filesystem completion, `~` and
+  relative path resolution, existing-session markers, Tab completion, and Esc cancel.
+- Host-owned dialogs (the board and the directory choice) no longer mark their own session
+  as needing input or route their keys through the navigation feature.
+
 ## 1.0.1 — 2026-10-16
 
 - Keep the package focused on the native Pi session extension. Remove worker
