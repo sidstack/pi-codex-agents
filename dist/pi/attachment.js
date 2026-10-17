@@ -36,6 +36,14 @@ export async function attachTerminal(connection, terminal, options = {}) {
     else
         buffered.push(message); };
     try {
+        // The physical terminal is started before the request is answered: the host renders
+        // the attached view as soon as it accepts, and a native startup dialog there needs
+        // this terminal's input. The finally below hands the terminal back if the host refuses.
+        terminal.start((data) => connection.send({ type: "input", data, kitty: terminal.kittyProtocolActive }), () => connection.send({ type: "resize", columns: terminal.columns, rows: terminal.rows, kitty: terminal.kittyProtocolActive }));
+        started = true;
+        for (const message of buffered)
+            display(message);
+        buffered.length = 0;
         const attachment = await connection.request("attach", {
             columns: terminal.columns, rows: terminal.rows, kitty: terminal.kittyProtocolActive,
             takeover: options.takeover === true,
@@ -43,11 +51,6 @@ export async function attachTerminal(connection, terminal, options = {}) {
         });
         if (connection.socket.destroyed)
             throw new Error("Session host disconnected during attachment");
-        terminal.start((data) => connection.send({ type: "input", data, kitty: terminal.kittyProtocolActive }), () => connection.send({ type: "resize", columns: terminal.columns, rows: terminal.rows, kitty: terminal.kittyProtocolActive }));
-        started = true;
-        for (const message of buffered)
-            display(message);
-        buffered.length = 0;
         // Attaching shows a session; the board is an explicit follow-up request.
         if (options.openBoard !== false)
             await connection.request("open");

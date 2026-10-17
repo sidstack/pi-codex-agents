@@ -9,7 +9,7 @@ import { connectNative, type NativeConnection } from "../src/pi/client.js";
 import { attachTerminal } from "../src/pi/attachment.js";
 
 /** How the fake host ends the attachment after answering attach/open. */
-type Ending = "drop" | "garbage" | "detached" | "quit" | "stopped" | "attach-only" | "launch-error";
+type Ending = "drop" | "garbage" | "detached" | "quit" | "stopped" | "attach-only" | "launch-error" | "startup-dialog" | "reject-attach";
 
 interface FakeHost {
   socketPath: string;
@@ -35,10 +35,25 @@ async function listenFakeHost(ending: Ending): Promise<FakeHost> {
   const server: Server = createServer((socket) => {
     accepted.push(socket);
     socket.on("error", () => {});
+    let attachId: unknown;
     const reader = createJsonlReader((raw) => {
       const message = raw as Record<string, unknown>;
       requests.push(message);
       if (socket.destroyed) return;
+      if (ending === "reject-attach") {
+        socket.write(encodeJsonl({ type: "response", id: message.id, success: false, error: "Native host is already attached" }));
+        return;
+      }
+      if (ending === "startup-dialog") {
+        if (message.type === "attach") {
+          attachId = message.id;
+          socket.write(encodeJsonl({ type: "terminal", method: "write", args: ["Startup confirmation"] }));
+        } else if (message.type === "input" && message.data === "\r") {
+          socket.write(encodeJsonl({ type: "response", id: attachId, success: true, result: {} }));
+          socket.write(encodeJsonl({ type: "detached", reason: "Startup completed" }), () => socket.end());
+        }
+        return;
+      }
       const answer = encodeJsonl({ type: "response", id: message.id, success: true, result: message.type === "attach" && ending === "launch-error"
         ? { answered: "attach", launchError: "Could not open a session for /tmp/gone: Not a directory" }
         : { answered: String(message.type) } });
@@ -99,6 +114,35 @@ async function runAttachment(ending: Ending, options: Parameters<typeof attachTe
 }
 
 describe("terminal attachment", () => {
+  it("renders and answers a startup dialog while the attach response is pending", async () => {
+    const host = await listenFakeHost("startup-dialog");
+    hosts.push(host);
+    const connection = await connectNative(host.socketPath);
+    const { terminal, calls } = fakeTerminal();
+    let input: ((data: string) => void) | undefined;
+    terminal.start = (onInput) => { calls.push("start"); input = onInput; };
+    terminal.write = (text) => {
+      expect(text).toBe("Startup confirmation");
+      expect(input).toBeDefined();
+      calls.push("dialog");
+      input!("\r");
+    };
+
+    const result = await attachTerminal(connection, terminal, { openBoard: false, launchCwd: "/tmp/project" });
+
+    expect(result.reason).toBe("Startup completed");
+    expect(calls).toEqual(["start", "dialog", "setProgress:false", "stop"]);
+    expect(host.requests.map((message) => message.type)).toEqual(["attach", "input"]);
+  });
+
+  it("hands the physical terminal back when attachment is refused", async () => {
+    const outcome = await runAttachment("reject-attach");
+
+    expect(outcome.error?.message).toContain("already attached");
+    expect(outcome.calls).toEqual(["start:function:function", "setProgress:false", "stop"]);
+    expect(outcome.connection.socket.destroyed).toBe(true);
+  });
+
   it("rejects an unexpected host close instead of reporting a clean return", async () => {
     const outcome = await runAttachment("drop");
 

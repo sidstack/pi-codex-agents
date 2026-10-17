@@ -182,6 +182,10 @@ export async function startNativeDaemon(cwd: string, config: Readonly<Config> = 
     record.view.ui.stop();
     record.view.lease.enabled = false;
   };
+  const suspendIfDetachedCurrent = () => {
+    const current = host.sessions.get(host.activeId);
+    if (current) suspendIfDetached(current);
+  };
   const recover = async (record: Session, ctx: ExtensionContext): Promise<void> => {
     await host.waitForInactivity(record.id);
     if (record.sessionFile) {
@@ -300,22 +304,46 @@ export async function startNativeDaemon(cwd: string, config: Readonly<Config> = 
     // never breaks the attachment: the previous foreground session stays usable.
     const launchCwd = typeof message.launchCwd === "string" && message.launchCwd.startsWith("/") ? message.launchCwd : undefined;
     let launchError: string | undefined;
+    // Preparing the target does not start its interactive view.
+    let targetId = host.activeId;
     if (launchCwd) {
       try {
         const target = await host.ensureSessionForCwd(launchCwd, trusted);
-        if (target !== host.activeId) await host.activate(target);
+        targetId = target.id;
+        launchError = target.launchError;
       } catch (error) {
         launchError = `Could not open a session for ${launchCwd}: ${error instanceof Error ? error.message : String(error)}`;
         console.error(launchError);
       }
+      // The frontend may have gone away while the target was prepared. Never hand a
+      // terminal lease to a socket that no longer owns the attachment.
+      if (attached !== socket || ending) { suspendIfDetachedCurrent(); return; }
     }
     write(socket, { type: "response", id: message.id, success: true, result: { ...snapshot(), launchError } });
-    const row = host.sessions.get(host.activeId)!;
+    // Activation is after the ACK. Native startup can wait for a human answer, and the
+    // frontend attach timeout must not cut that answer off while the terminal is lent here.
+    if (targetId !== host.activeId) {
+      try {
+        await host.activate(targetId);
+      } catch (error) {
+        // NativeFleet.activate restores the previous foreground view before rethrowing.
+        launchError = `Could not show the session for ${launchCwd}: ${error instanceof Error ? error.message : String(error)}`;
+        console.error(launchError);
+      }
+      if (attached !== socket || ending) { suspendIfDetachedCurrent(); return; }
+    }
+    const row = host.sessions.get(host.activeId);
+    if (!row?.view) {
+      console.error(`Native view is unavailable for ${host.activeId}`);
+      return;
+    }
     row.unread = false;
-    row.view!.lease.enabled = true;
-    await row.view!.start();
-    row.view!.lease.restore();
-    row.view!.ui.requestRender(true);
+    row.view.lease.enabled = true;
+    await row.view.start();
+    if (attached !== socket || ending) { suspendIfDetached(row); return; }
+    row.view.lease.restore();
+    if (launchError) row.context?.ui.notify(launchError, "error");
+    row.view.ui.requestRender(true);
     persist();
   }
 

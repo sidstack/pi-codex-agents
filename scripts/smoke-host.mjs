@@ -213,6 +213,79 @@ try {
   key(startup, "\x1b");
   await until(async () => !(await startup.request("status")).initializing, "startup completes after cancelling its dialog");
   console.log("PASS native daemon: startup extension dialogs remain attachable and cancellable");
+
+  // A launch into a different directory initializes a new native view during attach.
+  // Its attach response must arrive while the dialog is still waiting for an answer.
+  await startup.request("detach");
+  const launchDirectory = join(root, "launch-dialog");
+  await mkdir(launchDirectory);
+  const launch = await client();
+  const launchText = output(launch);
+  const launchObserver = await client();
+  let acknowledged = false;
+  const attaching = launch.request("attach", { ...attachedFields, launchCwd: launchDirectory });
+  void attaching.then(() => { acknowledged = true; }, () => {});
+  await until(() => acknowledged, "launch attachment is acknowledged before the startup dialog is answered");
+  await attaching;
+  await until(() => launchText().includes("Fixture startup dialog"), "launch startup dialog is visible before its answer");
+  state = await launchObserver.request("status");
+  assert.equal(state.sessions.find((row) => row.id === state.activeId).cwd, launchDirectory);
+  assert.equal(state.sessions.find((row) => row.id === state.activeId).prompts, 1);
+  key(launch, "\r");
+  await until(async () => (await launchObserver.request("status")).sessions.some((row) => row.cwd === launchDirectory && row.activity === "ready"), "launch startup accepts terminal input");
+  console.log("PASS native daemon: cross-directory launch acknowledges attach before interactive startup finishes");
+
+  // Losing the frontend during initialization must leave the runtime recoverable and
+  // stop its terminal. A later frontend can answer the same pending startup dialog.
+  await launch.request("detach");
+  const interruptedDirectory = join(root, "interrupted-launch");
+  await mkdir(interruptedDirectory);
+  const interrupted = await client();
+  const interruptedText = output(interrupted);
+  let interruptedAcknowledged = false;
+  const interruptedAttach = interrupted.request("attach", { ...attachedFields, launchCwd: interruptedDirectory });
+  void interruptedAttach.then(() => { interruptedAcknowledged = true; }, () => {});
+  await until(() => interruptedAcknowledged, "interrupted launch attachment is acknowledged");
+  await interruptedAttach;
+  await until(() => interruptedText().includes("Fixture startup dialog"), "interrupted launch reaches its dialog");
+  interrupted.socket.destroy();
+  await until(async () => !(await launchObserver.request("status")).attached, "frontend loss detaches during startup");
+  const resumedLaunch = await client();
+  const resumedText = output(resumedLaunch);
+  await resumedLaunch.request("attach", attachedFields);
+  await until(() => resumedText().includes("Fixture startup dialog"), "pending launch dialog redraws after frontend loss");
+  key(resumedLaunch, "\x1b");
+  await until(async () => (await launchObserver.request("status")).sessions.some((row) => row.cwd === interruptedDirectory && row.activity === "ready"), "reattached launch startup completes");
+  console.log("PASS native daemon: frontend loss during launch startup preserves its pending dialog");
+
+  // Seed a missing managed history, then launch that project. The fresh fallback
+  // must show its warning while attached and retain the failed historical entry.
+  await resumedLaunch.request("stop");
+  await until(() => resumedLaunch.socket.destroyed, "stop before missing launch history fixture");
+  await until(() => {
+    try { process.kill(owner, 0); return false; } catch { return true; }
+  }, "previous host exits before editing its registry fixture");
+  await rm(join(agent, "extensions", "startup-dialog.ts"));
+  const missingDirectory = join(root, "missing-launch-history");
+  await mkdir(missingDirectory);
+  const missingRegistry = JSON.parse(await readFile(nativeDaemonPaths().registry, "utf8"));
+  const missingFile = join(agent, "sessions", "missing-launch.jsonl");
+  missingRegistry.sessions.push({ id: "missing-launch", name: "Missing launch history", cwd: missingDirectory, activity: "inactive", sessionFile: missingFile });
+  await writeFile(nativeDaemonPaths().registry, JSON.stringify(missingRegistry), { mode: 0o600 });
+  const fallback = await client(true);
+  owner = (await fallback.request("status")).pid;
+  const fallbackText = output(fallback);
+  const fallbackResponse = await fallback.request("attach", { ...attachedFields, launchCwd: missingDirectory });
+  assert.match(fallbackResponse.launchError, /Could not resume saved session/);
+  assert(fallbackResponse.launchError.includes(missingFile));
+  await until(() => fallbackText().includes("Could not resume saved session"), "missing-history warning appears before detach");
+  state = await fallback.request("status");
+  assert.equal(state.attached, true);
+  assert.equal(state.sessions.find((row) => row.id === "missing-launch").activity, "failed");
+  assert.equal(state.sessions.find((row) => row.id === state.activeId).cwd, missingDirectory);
+  assert.notEqual(state.activeId, "missing-launch");
+  assert.equal(requests, 2, "launch recovery never replays model requests");
+  console.log("PASS native daemon: missing launch history retains its failed row and warns in the attached fallback view");
 } finally {
   for (const c of clients) c.socket.destroy();
   try { const stop = await connectNative(nativeDaemonPaths().socket); await stop.request("stop"); stop.socket.destroy(); } catch {}

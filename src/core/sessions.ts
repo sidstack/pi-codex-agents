@@ -30,6 +30,13 @@ export interface Session extends LiveSession {
   draft?: string;
 }
 
+/** What a frontend should show for its own launch directory, and what went wrong getting there. */
+export interface LaunchSessionResult {
+  id: string;
+  /** The directory's saved history could not be resumed; a usable session was started instead. */
+  launchError?: string;
+}
+
 export interface NativeSessionOptions {
   id?: string;
   name?: string;
@@ -236,11 +243,13 @@ export class NativeSessionHost extends NativeFleet {
   /**
    * The session a frontend should show for its own directory: a live one for that
    * directory, a saved one resumed in place, or a new one. Never a duplicate.
+   * A saved history that cannot be opened keeps its failed row and yields a usable
+   * fallback session plus the reason, so the attachment can show what happened.
    */
-  async ensureSessionForCwd(cwd: string, isTrusted: (directory: string) => boolean): Promise<string> {
+  async ensureSessionForCwd(cwd: string, isTrusted: (directory: string) => boolean): Promise<LaunchSessionResult> {
     const rows = [...this.sessions.values()].filter((row) => row.cwd === cwd);
     const live = rows.filter(isNavigable).sort((a, b) => (b.lastActivityAt ?? 0) - (a.lastActivityAt ?? 0));
-    if (live[0]) return live[0].id;
+    if (live[0]) return { id: live[0].id };
     const saved = rows.filter((row) => !row.view && !row.stopping && row.sessionFile)
       .sort((a, b) => (b.lastActivityAt ?? 0) - (a.lastActivityAt ?? 0))[0];
     if (saved?.sessionFile) {
@@ -249,13 +258,19 @@ export class NativeSessionHost extends NativeFleet {
         const resumed = await this.create(cwd, isTrusted(cwd), undefined, {
           id: saved.id, name: saved.name, sessionFile: saved.sessionFile, sourceFile: saved.sourceFile, draft: saved.draft,
         });
-        return resumed.id;
+        return { id: resumed.id };
       } catch (error) {
         this.fail(saved, error);
+        const reason = error instanceof Error ? error.message : String(error);
+        const created = await this.create(cwd, isTrusted(cwd));
+        return {
+          id: created.id,
+          launchError: `Could not resume saved session ${saved.name} in ${cwd}: ${reason}. Showing a new session for this directory; the saved entry is marked failed.`,
+        };
       }
     }
     const created = await this.create(cwd, isTrusted(cwd));
-    return created.id;
+    return { id: created.id };
   }
 
   create(cwd: string, trusted: boolean, parent?: ExtensionContext, options: NativeSessionOptions = {}): Promise<Session> {

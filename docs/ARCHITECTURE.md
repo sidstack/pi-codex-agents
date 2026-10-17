@@ -121,6 +121,11 @@ its first session, so a later `/new`, resume, or `/reload` in ordinary Pi keeps 
 terminal. `autoAttach` is frontend configuration only: the host serves the same attach
 whether a frontend asked for it or the user pressed `/agents`.
 
+The attach handshake completes before waiting for the foreground view's interactive
+initialization, so startup dialogs can render and receive input without the request timeout
+limiting how long the user has to answer. A failed history resume retains its failed row
+and opens a usable fallback; its warning appears in the attached native view immediately.
+
 Optional behavior implements `SessionFeature` in `src/features/contracts.ts`.
 `configuredFeatures` is the single assembly point. The core accepts a feature list
 and imports only its type contract; it never imports concrete feature modules.
