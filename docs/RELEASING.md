@@ -36,7 +36,7 @@ pi install npm:pi-codex-agents@latest
 Or install a release directly from GitHub:
 
 ```sh
-pi install git:github.com/sidstack/pi-codex-agents@v1.1.0-beta.1
+pi install git:github.com/sidstack/pi-codex-agents@v1.1.0-beta.2
 ```
 
 Reload Pi after installation. Uninstall with `pi remove` using the same source

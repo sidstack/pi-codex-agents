@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0-beta.2 — 2026-10-17
+
+- Complete attachment before waiting for answers to startup dialogs, keeping those dialogs
+  visible and interactive. Report failed history resumes in the attached fallback
+  session while retaining the failed saved entry.
+
 ## 1.1.0-beta.1 — 2026-10-16
 
 - Launch Pi in a directory and it attaches a managed session for that directory: a live
@@ -12,9 +18,6 @@
   relative path resolution, existing-session markers, Tab completion, and Esc cancel.
 - Host-owned dialogs (the board and the directory choice) no longer mark their own session
   as needing input or route their keys through the navigation feature.
-- Complete attachment before waiting for answers to startup dialogs, keeping those dialogs
-  visible and interactive. Report failed history resumes in the attached fallback
-  session while retaining the failed saved entry.
 
 ## 1.0.1 — 2026-10-16
 

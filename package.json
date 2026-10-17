@@ -1,6 +1,6 @@
 {
   "name": "pi-codex-agents",
-  "version": "1.1.0-beta.1",
+  "version": "1.1.0-beta.2",
   "description": "Native Pi extension for persistent agent sessions and a session command center",
   "type": "module",
   "engines": {
@@ -64,6 +64,6 @@
   ],
   "publishConfig": {
     "access": "public",
-    "tag": "latest"
+    "tag": "beta"
   }
 }
