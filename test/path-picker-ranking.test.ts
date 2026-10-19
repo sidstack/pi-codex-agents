@@ -5,6 +5,24 @@ import { join } from "node:path";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { PathPicker, type PickerCandidate, type PickerProject } from "../src/ui/path-picker.js";
 
+interface DiscoveryOptions {
+  signal?: AbortSignal;
+  onDiscovered?: (directories: readonly string[]) => void;
+}
+
+/**
+ * Background discovery is replaced so this file never runs a real filesystem scan and no
+ * automatic `onDiscovered` callback can land mid-test. The scan promise stays in flight, so the
+ * only discovered path in the ordering assertions below is the one an explicit
+ * `mergeDiscovered(...)` call injects. Without this, a BFS over the shared temp directory can
+ * reach the sibling fixture within the settle window and make the pre-merge assertion flaky.
+ */
+const discovery = vi.hoisted(() => ({
+  discoverDirectories: vi.fn((_options: DiscoveryOptions) => new Promise<never>(() => {})),
+}));
+
+vi.mock("../src/ui/path-index.js", () => ({ discoverDirectories: discovery.discoverDirectories }));
+
 const theme = {
   fg: (_token: string, text: string) => text,
   bg: (_token: string, text: string) => text,
@@ -48,6 +66,8 @@ describe("score-ranked candidate ordering", () => {
       // Old behavior: 50 children pushed first, slice(0, 40) drops the discovered match.
       expect(candidates(picker).length).toBe(40);
       expect(candidates(picker).some((candidate) => candidate.path === exact)).toBe(false);
+      // Discovery ran but delivered nothing on its own, so the merge below is the only source.
+      expect(discovery.discoverDirectories).toHaveBeenCalledTimes(1);
       (picker as unknown as { mergeDiscovered(paths: string[]): void }).mergeDiscovered([exact]);
       await settle();
       const list = candidates(picker);
