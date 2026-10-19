@@ -82,16 +82,18 @@ export default function piAgents(pi: ExtensionAPI): void {
     try {
       while (await openOnce(ctx, options)) {
         // The host replaced itself from inside a managed view: start the installed build
-        // and reconnect, so /agents restart is one command wherever it is typed.
+        // and reconnect, so /agents restart is one command wherever it is typed. The
+        // reconnect is a reattachment, not a new launch: it carries no launch directory and
+        // keeps the caller's board choice, so a startup attach stays on its session view.
         const replacement = await ensureNativeConnection(ctx.cwd, true, getAgentDir(), { autoUpdateHost: false });
         replacement.socket.end();
         ctx.ui.notify("Agent host restarted with the current build.", "info");
-        options = { ...options, takeover: false };
+        options = { takeover: false, ...(options.openBoard === false ? { openBoard: false } : {}) };
       }
     } finally { opening = false; }
   };
 
-  /** Launching Pi in a directory attaches it to a managed session for that directory. */
+  /** Launching Pi in a directory attaches it to a new managed session for that directory. */
   const attachLaunchSession = (ctx: ExtensionContext): void => {
     if (!launchPending || launchAttached || opening) return;
     // A startup dialog belongs to ordinary Pi. Wait for it instead of covering it.

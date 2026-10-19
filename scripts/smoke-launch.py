@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Launching Pi in a directory attaches a managed session for that directory."""
+"""Launching Pi in a directory attaches a new managed session for that directory."""
 import errno
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -93,9 +94,13 @@ with tempfile.TemporaryDirectory(prefix="pi-agents-launch-") as temp:
         assert state["attached"] is True, "launching Pi must attach its terminal to the host"
         assert "Agent command center" not in output.decode(errors="replace"), \
             "a launch attachment shows a session, not the command center"
-        assert foreground(state)["cwd"] == str(alpha), foreground(state)
+        first = foreground(state)
+        assert first["cwd"] == str(alpha), first
+        first_id, first_file = first["id"], first["sessionFile"]
         print("PASS launch: Pi attaches a managed session for the directory it started in")
 
+        # A draft typed into that session belongs to it, not to the next launch.
+        send("keep me")
         # Ctrl+Z leaves that session back to the Pi editor that was launched.
         mark = len(output)
         send("\x1a")
@@ -119,13 +124,21 @@ with tempfile.TemporaryDirectory(prefix="pi-agents-launch-") as temp:
         send("\r")
         expect("Sessions remain running. Open /agents to reconnect.", mark)
 
-        # Reopening the first directory resumes that directory's session, never a duplicate.
+        # Relaunching the first directory starts a new session for it, like a fresh run,
+        # and leaves the session that directory was used for before untouched.
         launch(alpha)
-        expect("sessions 2 ·")
+        expect("sessions 3 ·")
         state = control("status")
-        assert foreground(state)["cwd"] == str(alpha), foreground(state)
-        assert sum(1 for row in state["sessions"] if row["cwd"] == str(alpha)) == 1, state["sessions"]
-        print("PASS launch: reopening a directory resumes its session without duplicating it")
+        rows = [row for row in state["sessions"] if row["cwd"] == str(alpha)]
+        assert len(rows) == 2, state["sessions"]
+        current = foreground(state)
+        assert current["cwd"] == str(alpha), current
+        assert current["id"] != first_id, f"relaunching a directory must start a new session: {current}"
+        assert current["sessionFile"] != first_file, (current["sessionFile"], first_file)
+        assert Path(first_file).is_file() and Path(current["sessionFile"]).is_file(), (first_file, current["sessionFile"])
+        draft = root / "host" / "drafts" / f"{hashlib.sha256(first_id.encode()).hexdigest()}.json"
+        assert draft.is_file() and "keep me" in draft.read_text(), f"the older session draft was not retained: {draft}"
+        print("PASS launch: relaunching a directory gets a new session and history, keeping the older one")
     finally:
         try:
             control("stop")

@@ -30,10 +30,11 @@ session history and app state, so they are available if you reinstall later.
 
 ## Open your sessions
 
-Launching Pi in a directory attaches it to a managed session **for that directory**: an
-existing session for it is resumed, otherwise one is created. You land in that session's
-editor, not in the command center. Set `autoAttach: false` to keep ordinary Pi at startup
-and enter the host yourself with `/agents` or Left Arrow.
+Launching Pi in a directory attaches it to a managed session **for that directory**: a new
+session with its own history every time, so each launch starts fresh. Sessions from earlier
+launches of that directory stay available in the command center with their history and
+drafts. You land in that session's editor, not in the command center. Set `autoAttach: false`
+to keep ordinary Pi at startup and enter the host yourself with `/agents` or Left Arrow.
 
 | Control | Action |
 | --- | --- |
@@ -41,7 +42,7 @@ and enter the host yourself with `/agents` or Left Arrow.
 | Left Arrow, editor empty | Open the command center; drafts retain normal cursor movement |
 | Enter | Open selected session; automatically restore inactive sessions |
 | Ctrl+N | Create a session in the directory you are viewing |
-| Ctrl+P | Create a session in another directory, chosen from recent projects and completions |
+| Ctrl+P | Create a session in another directory, chosen by fuzzy search over known projects and nearby directories |
 | Ctrl+Alt+N / Ctrl+Alt+P | Cycle live views, including over pending dialogs |
 | Tab / Shift+Tab | Filter Active, Inactive, All |
 | Type | Search sessions and projects |
@@ -156,6 +157,32 @@ choice that lists this directory, your recent projects, and completions for what
 selection into the input, Enter chooses, and Esc cancels without creating anything.
 Directories that already hold a session are marked `existing`, so a project is never opened
 twice by accident. `/agents new [directory]` does the same thing from the command line.
+
+Typing searches fuzzily. A directory matches on its name first — exact, then prefix, then
+substring, then the letters in order — with a match anywhere in the full path as a weaker
+fallback, so `scr` still offers `~/work/screenshots`. Sessions you already have outrank
+plain directories of equal quality, and the list is capped at 40 rows; type more to narrow
+it.
+
+Each picker starts one bounded search of nearby directories in the background and keeps what
+it finds in its own snapshot: the directory you opened from, its parent, a shallow pass over
+your home directory, then the directories your sessions already know. It goes three levels
+deep (two under home), examines at most 3000 entries, gives up after a second, never
+traverses the filesystem root, never follows a symlink — a symlinked directory is skipped,
+not entered — and skips heavy trees such as `node_modules`, `.git`, `dist`, `build`,
+`vendor`, and hidden directories. Typing never restarts that background search: each
+keystroke only re-filters the snapshot the search has fed so far. Results arrive in batches
+and only merge into the snapshot, and cancelling ends the search.
+
+Typing a path is unchanged: `..`, `~/project`, and absolute paths resolve against the
+session the picker was opened from, a directory you type in full is offered first, and a
+trailing `/` lists what is inside it. Those per-directory completion listings keep their own
+bound (200 entries, a short-lived cache), independent of the background search: the picker
+says so when a listing is capped, and the names left out do not come back by typing — type
+the directory in full, or a trailing `/` to step into it, instead. An unreadable directory
+completes nothing instead of failing. While
+results change underneath you, the highlight follows the path you selected rather than its
+position in the list.
 
 ## Return to Pi and reconnect
 

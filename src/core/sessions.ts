@@ -14,7 +14,7 @@ import { PathPicker, expandDirectory, type PickerProject } from "../ui/path-pick
 import { isNavigable, NativeFleet, type LiveSession, type NativeView } from "./fleet.js";
 import { loadConfig, type Config } from "../config.js";
 import type { SessionFeature } from "../features/contracts.js";
-import { privateDirectory, assertManagedFile } from "./security.js";
+import { privateDirectory } from "./security.js";
 import { TerminalLease } from "./terminal.js";
 import { nativePromptCancellation } from "./native-prompts.js";
 import { PI_VERSION_RANGE, supportedPiVersion } from "../pi-version.js";
@@ -33,7 +33,7 @@ export interface Session extends LiveSession {
 /** What a frontend should show for its own launch directory, and what went wrong getting there. */
 export interface LaunchSessionResult {
   id: string;
-  /** The directory's saved history could not be resumed; a usable session was started instead. */
+  /** The new launch session could not be prepared; the frontend keeps its previous foreground. */
   launchError?: string;
 }
 
@@ -241,33 +241,18 @@ export class NativeSessionHost extends NativeFleet {
   }
 
   /**
-   * The session a frontend should show for its own directory: a live one for that
-   * directory, a saved one resumed in place, or a new one. Never a duplicate.
-   * A saved history that cannot be opened keeps its failed row and yields a usable
-   * fallback session plus the reason, so the attachment can show what happened.
+   * The session a frontend launch gets for its own directory: a new managed history
+   * every time, so launching Pi in a directory behaves like a fresh run instead of
+   * reopening whatever that directory was last used for. The one exception is the
+   * Home session this host created while starting up for that same launch directory,
+   * which the launch claims instead of adding a second session beside it.
+   * Sessions already in the directory are never reused or modified: their rows,
+   * histories and drafts stay available in the command center.
    */
-  async ensureSessionForCwd(cwd: string, isTrusted: (directory: string) => boolean): Promise<LaunchSessionResult> {
-    const rows = [...this.sessions.values()].filter((row) => row.cwd === cwd);
-    const live = rows.filter(isNavigable).sort((a, b) => (b.lastActivityAt ?? 0) - (a.lastActivityAt ?? 0));
-    if (live[0]) return { id: live[0].id };
-    const saved = rows.filter((row) => !row.view && !row.stopping && row.sessionFile)
-      .sort((a, b) => (b.lastActivityAt ?? 0) - (a.lastActivityAt ?? 0))[0];
-    if (saved?.sessionFile) {
-      try {
-        assertManagedFile(join(this.agentDir, "sessions"), saved.sessionFile);
-        const resumed = await this.create(cwd, isTrusted(cwd), undefined, {
-          id: saved.id, name: saved.name, sessionFile: saved.sessionFile, sourceFile: saved.sourceFile, draft: saved.draft,
-        });
-        return { id: resumed.id };
-      } catch (error) {
-        this.fail(saved, error);
-        const reason = error instanceof Error ? error.message : String(error);
-        const created = await this.create(cwd, isTrusted(cwd));
-        return {
-          id: created.id,
-          launchError: `Could not resume saved session ${saved.name} in ${cwd}: ${reason}. Showing a new session for this directory; the saved entry is marked failed.`,
-        };
-      }
+  async launchSessionForCwd(cwd: string, isTrusted: (directory: string) => boolean, claimHomeId?: string): Promise<LaunchSessionResult> {
+    if (claimHomeId) {
+      const home = this.sessions.get(claimHomeId);
+      if (home && home.cwd === cwd && !home.stopping) return { id: home.id };
     }
     const created = await this.create(cwd, isTrusted(cwd));
     return { id: created.id };

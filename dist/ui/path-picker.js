@@ -4,6 +4,8 @@ import { basename, dirname, join, resolve } from "node:path";
 import { Input, matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { plainText } from "../core/security.js";
 import { abbreviatePath, commandCenterSize } from "./board.js";
+import { discoverDirectories } from "./path-index.js";
+import { scorePathMatch } from "./path-score.js";
 const LIST_LIMIT = 200;
 const PROJECT_LIMIT = 12;
 const CANDIDATE_LIMIT = 40;
@@ -91,6 +93,9 @@ export class PathPicker {
     finished = false;
     pending;
     timer;
+    /** Picker-local snapshot of directories found by the single background scan. */
+    discovered = [];
+    discovery;
     constructor(projects, cwd, theme, redraw, done, terminalRows = () => 40, fullscreen = false) {
         this.projects = projects;
         this.cwd = cwd;
@@ -100,6 +105,36 @@ export class PathPicker {
         this.terminalRows = terminalRows;
         this.fullscreen = fullscreen;
         this.pending = this.refresh();
+        this.startDiscovery();
+    }
+    /** Exactly one bounded background scan per picker; batches only feed the local snapshot. */
+    startDiscovery() {
+        if (this.discovery || this.finished)
+            return;
+        const controller = new AbortController();
+        this.discovery = controller;
+        const knownProjects = [...new Set(this.projects.map((project) => resolve(project.cwd)))];
+        void discoverDirectories({
+            cwd: this.cwd,
+            knownProjects,
+            signal: controller.signal,
+            onDiscovered: (directories) => this.mergeDiscovered(directories),
+        }).catch(() => { });
+    }
+    mergeDiscovered(directories) {
+        if (this.finished || this.discovery?.signal.aborted)
+            return;
+        for (const directory of directories) {
+            const key = resolve(directory);
+            if (!this.discovered.includes(key))
+                this.discovered.push(key);
+        }
+        // Re-merge the snapshot into the current filter; never start another scan.
+        this.schedule();
+    }
+    stopDiscovery() {
+        this.discovery?.abort();
+        this.discovery = undefined;
     }
     schedule() {
         clearTimeout(this.timer);
@@ -135,6 +170,9 @@ export class PathPicker {
             for (const name of listing.entries)
                 if (!name.startsWith("."))
                     push(join(this.cwd, name), "directory");
+            for (const path of this.discovered)
+                if (matchesQuery(query, path))
+                    push(path, "directory");
         }
         else {
             const target = expandDirectory(typed, this.cwd);
@@ -156,17 +194,54 @@ export class PathPicker {
             }
             for (const project of recent)
                 push(project.cwd, "project");
+            for (const path of this.discovered)
+                if (matchesQuery(query, path))
+                    push(path, "directory");
         }
-        if (token !== this.token)
+        // Escape or dispose during an await closes the picker: never commit or repaint it.
+        if (this.finished || token !== this.token)
             return; // a newer keystroke superseded this listing
+        if (typed)
+            this.rankCandidates(candidates, query, recent);
+        const listed = candidates.slice(0, CANDIDATE_LIMIT);
         if (typed !== this.typed)
             this.selected = 0;
+        else {
+            // Anchor on the highlighted path, read after the awaits so ↑/↓ pressed mid-refresh wins.
+            const anchor = this.candidates[this.selected]?.path;
+            if (anchor) {
+                // Same query: follow the chosen path; if it vanished, keep the index clamped.
+                const index = listed.findIndex((candidate) => candidate.path === anchor);
+                if (index >= 0)
+                    this.selected = index;
+            }
+        }
         this.typed = typed;
         this.truncated = truncated;
         this.searching = false;
-        this.candidates = candidates.slice(0, CANDIDATE_LIMIT);
+        this.candidates = listed;
         this.selected = Math.max(0, Math.min(this.selected, this.candidates.length - 1));
         this.redraw();
+    }
+    /** Rank nonempty-query candidates by match quality before CANDIDATE_LIMIT truncation. */
+    rankCandidates(candidates, query, recent) {
+        const scores = new Map();
+        const score = (candidate) => {
+            const cached = scores.get(candidate.path);
+            if (cached !== undefined)
+                return cached;
+            const value = scorePathMatch(query, candidate.path);
+            scores.set(candidate.path, value);
+            return value;
+        };
+        const recency = new Map(recent.map((project, index) => [project.cwd, index]));
+        const rank = (candidate) => candidate.existing ? recency.get(candidate.path) ?? recent.length : Number.MAX_SAFE_INTEGER;
+        // A valid typed directory stays first; the rest sort by score, known projects first on ties.
+        const head = candidates[0]?.source === "typed" ? candidates.slice(0, 1) : [];
+        const rest = candidates.slice(head.length);
+        rest.sort((a, b) => score(b) - score(a) || rank(a) - rank(b));
+        candidates.length = 0;
+        candidates.push(...head, ...rest);
     }
     accept() {
         if (this.finished)
@@ -183,6 +258,7 @@ export class PathPicker {
         if (this.finished)
             return;
         this.finished = true;
+        this.stopDiscovery();
         const candidate = this.candidates[this.selected];
         if (candidate)
             return this.done(candidate.path);
@@ -194,6 +270,9 @@ export class PathPicker {
             return;
         if (matchesKey(data, "escape")) {
             this.finished = true;
+            clearTimeout(this.timer); // no refresh may start once the picker is closed
+            this.timer = undefined;
+            this.stopDiscovery();
             return this.done(undefined);
         }
         if (matchesKey(data, "enter"))
@@ -253,7 +332,7 @@ export class PathPicker {
         if (!entries.length)
             lines.push(fg("muted", this.searching ? "Searching…" : "No matching directory. Type a path and press Enter."));
         if (this.truncated)
-            lines.push(fg("muted", `Listing is limited to ${LIST_LIMIT} entries. Type to narrow it.`));
+            lines.push(fg("muted", `Listing is limited to ${LIST_LIMIT} entries. Type the full path to reach the rest.`));
         while (lines.length < height - chrome - 2 - footer.length)
             lines.push("");
         lines.push(...footer);
@@ -272,6 +351,10 @@ export class PathPicker {
         ];
     }
     invalidate() { this.input.invalidate(); }
-    dispose() { clearTimeout(this.timer); }
+    dispose() {
+        clearTimeout(this.timer);
+        this.finished = true;
+        this.stopDiscovery();
+    }
 }
 //# sourceMappingURL=path-picker.js.map

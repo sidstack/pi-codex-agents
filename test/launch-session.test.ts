@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import type { Terminal, TUI } from "@earendil-works/pi-tui";
 import { NativeSessionHost, type Session } from "../src/core/sessions.js";
 import { TerminalLease } from "../src/core/terminal.js";
@@ -35,109 +36,133 @@ function stubRecord(id: string, cwd: string): Session {
 }
 
 describe("the session a directory launches into", () => {
-  it("reuses the live session for that directory instead of creating another one", async () => {
+  it("starts a new session even when live sessions already show that directory", async () => {
     const host = new NativeSessionHost(agentRoot(), () => ({} as Terminal));
     withView(host, "home", "/tmp/other", 100);
     const older = withView(host, "older", "/tmp/project", 200);
     const recent = withView(host, "recent", "/tmp/project", 900);
-    const create = vi.spyOn(host, "create");
+    const create = vi.spyOn(host, "create").mockImplementation(async (cwd) => {
+      const created = stubRecord("fresh", cwd);
+      host.sessions.set(created.id, created);
+      return created;
+    });
 
-    await expect(host.ensureSessionForCwd("/tmp/project", () => true)).resolves.toMatchObject({ id: "recent" });
-    expect(create).not.toHaveBeenCalled();
+    const result = await host.launchSessionForCwd("/tmp/project", () => true);
+
+    expect(result.id).toBe("fresh");
+    expect(result.launchError).toBeUndefined();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith("/tmp/project", true);
+    // The directory's existing sessions are still there and still usable.
     expect(older.view).toBeDefined();
     expect(recent.view).toBeDefined();
+    // One new row beside them: the launch did not take over an existing session.
+    expect(host.sessions.size).toBe(4);
+    expect(host.sessions.get("recent")?.view).toBeDefined();
   });
 
-  it("resumes a saved session for that directory in place, keeping its id and history", async () => {
+  it("leaves a saved session for that directory, its history and its draft untouched", async () => {
     const agentDir = agentRoot();
     const sessionFile = join(agentDir, "sessions", "--tmp-project--", "session.jsonl");
     mkdirSync(join(agentDir, "sessions", "--tmp-project--"), { recursive: true });
-    const { writeFileSync } = await import("node:fs");
     writeFileSync(sessionFile, '{"type":"session","cwd":"/tmp/project"}\n');
     const host = new NativeSessionHost(agentDir, () => ({} as Terminal));
     withView(host, "home", "/tmp/other", 100);
     host.sessions.set("saved", { id: "saved", cwd: "/tmp/project", name: "Project", activity: "inactive", running: false, prompts: 0, unread: false, lastActivityAt: 500, sessionFile, draft: "kept draft" });
-    const create = vi.spyOn(host, "create").mockResolvedValue(stubRecord("saved", "/tmp/project"));
+    const create = vi.spyOn(host, "create").mockResolvedValue(stubRecord("fresh", "/tmp/project"));
 
-    const resumed = await host.ensureSessionForCwd("/tmp/project", () => true);
-    expect(resumed.id).toBe("saved");
-    expect(resumed.launchError).toBeUndefined();
-    expect(create).toHaveBeenCalledWith("/tmp/project", true, undefined, { id: "saved", name: "Project", sessionFile, sourceFile: undefined, draft: "kept draft" });
-  });
+    const result = await host.launchSessionForCwd("/tmp/project", () => true);
 
-  it("creates one new session when the directory has never been opened", async () => {
-    const host = new NativeSessionHost(agentRoot(), () => ({} as Terminal));
-    withView(host, "home", "/tmp/other", 100);
-    const create = vi.spyOn(host, "create").mockResolvedValue(stubRecord("fresh", "/tmp/brand-new"));
-
-    const result = await host.ensureSessionForCwd("/tmp/brand-new", () => true);
     expect(result.id).toBe("fresh");
     expect(result.launchError).toBeUndefined();
-    expect(create).toHaveBeenCalledWith("/tmp/brand-new", true);
+    // Nothing is resumed in place: the launch never reuses a saved id or history file.
+    expect(create).toHaveBeenCalledWith("/tmp/project", true);
+    expect(host.sessions.get("saved")).toMatchObject({ id: "saved", activity: "inactive", sessionFile, draft: "kept draft" });
+    expect(host.sessions.get("saved")?.view).toBeUndefined();
+  });
+
+  it("claims the Home session this host created for the launch directory", async () => {
+    const host = new NativeSessionHost(agentRoot(), () => ({} as Terminal));
+    const home = withView(host, "home", "/tmp/project", 100);
+    const create = vi.spyOn(host, "create");
+
+    const result = await host.launchSessionForCwd("/tmp/project", () => true, "home");
+
+    expect(result.id).toBe("home");
+    expect(result.launchError).toBeUndefined();
+    expect(create).not.toHaveBeenCalled();
+    expect(host.sessions.size).toBe(1);
+    expect(home.cwd).toBe("/tmp/project");
+  });
+
+  it("does not claim a Home that belongs to another directory or is stopping", async () => {
+    const host = new NativeSessionHost(agentRoot(), () => ({} as Terminal));
+    withView(host, "home", "/tmp/other", 100);
+    const create = vi.spyOn(host, "create").mockResolvedValue(stubRecord("fresh", "/tmp/project"));
+
+    await expect(host.launchSessionForCwd("/tmp/project", () => true, "home")).resolves.toMatchObject({ id: "fresh" });
+    expect(create).toHaveBeenCalledWith("/tmp/project", true);
+
+    const stopping = new NativeSessionHost(agentRoot(), () => ({} as Terminal));
+    const leaving = withView(stopping, "home", "/tmp/project", 100);
+    leaving.stopping = true;
+    const createSecond = vi.spyOn(stopping, "create").mockResolvedValue(stubRecord("fresh", "/tmp/project"));
+
+    await expect(stopping.launchSessionForCwd("/tmp/project", () => true, "home")).resolves.toMatchObject({ id: "fresh" });
+    expect(createSecond).toHaveBeenCalledTimes(1);
   });
 
   it("trusts the directory through the caller's policy, not by assumption", async () => {
     const host = new NativeSessionHost(agentRoot(), () => ({} as Terminal));
     const create = vi.spyOn(host, "create").mockResolvedValue(stubRecord("fresh", "/tmp/untrusted"));
 
-    await host.ensureSessionForCwd("/tmp/untrusted", () => false);
+    await host.launchSessionForCwd("/tmp/untrusted", () => false);
     expect(create).toHaveBeenCalledWith("/tmp/untrusted", false);
   });
 
-  it("marks an unreachable managed history failed and starts a usable session", async () => {
+  it("gives two launches in the same directory distinct sessions and distinct histories", async () => {
     const agentDir = agentRoot();
+    const directory = join(agentDir, "sessions", "--tmp-project--");
+    mkdirSync(directory, { recursive: true });
+    const olderHistory = join(directory, "older.jsonl");
+    writeFileSync(olderHistory, '{"type":"session","cwd":"/tmp/project"}\n');
     const host = new NativeSessionHost(agentDir, () => ({} as Terminal));
-    host.sessions.set("broken", { id: "broken", cwd: "/tmp/project", name: "Project", activity: "inactive", running: false, prompts: 0, unread: false, lastActivityAt: 500, sessionFile: join(agentDir, "sessions", "missing.jsonl") });
-    const create = vi.spyOn(host, "create").mockResolvedValue(stubRecord("fresh", "/tmp/project"));
-
-    const result = await host.ensureSessionForCwd("/tmp/project", () => true);
-    expect(result.id).toBe("fresh");
-    expect(host.sessions.get("broken")).toMatchObject({ activity: "failed" });
-    expect(host.sessions.get("broken")?.lastError).toBeTruthy();
-    expect(create).toHaveBeenCalledTimes(1);
-  });
-
-  it("carries the reason for an unreachable history to the attachment instead of switching silently", async () => {
-    const agentDir = agentRoot();
-    const host = new NativeSessionHost(agentDir, () => ({} as Terminal));
-    const missing = join(agentDir, "sessions", "--tmp-project--", "gone.jsonl");
-    host.sessions.set("broken", { id: "broken", cwd: "/tmp/project", name: "Project", activity: "inactive", running: false, prompts: 0, unread: false, lastActivityAt: 500, sessionFile: missing });
-    const create = vi.spyOn(host, "create").mockImplementation(async (directory) => {
-      const created = stubRecord("fresh", directory);
-      host.sessions.set(created.id, created);
+    host.sessions.set("saved", { id: "saved", cwd: "/tmp/project", name: "Project", activity: "inactive", running: false, prompts: 0, unread: false, lastActivityAt: 500, sessionFile: olderHistory, draft: "kept draft" });
+    // Pi names each new managed history after its own session id, so every launch writes its own file.
+    let launches = 0;
+    vi.spyOn(host, "create").mockImplementation(async (cwd) => {
+      launches += 1;
+      const id = randomUUID();
+      const sessionFile = join(directory, `launch-${launches}_${id}.jsonl`);
+      writeFileSync(sessionFile, `${JSON.stringify({ type: "session", cwd })}\n`);
+      const created: Session = { ...stubRecord(id, cwd), sessionFile };
+      host.sessions.set(id, created);
       return created;
     });
 
-    const result = await host.ensureSessionForCwd("/tmp/project", () => true);
+    const first = await host.launchSessionForCwd("/tmp/project", () => true);
+    const second = await host.launchSessionForCwd("/tmp/project", () => true);
 
-    // A usable session is still attached, and the recovery is reported with it.
-    expect(result.id).toBe("fresh");
-    expect(result.launchError).toContain("Could not resume saved session Project");
-    expect(result.launchError).toContain("ENOENT");
-    expect(result.launchError).toContain("marked failed");
-    expect(host.sessions.get("broken")).toMatchObject({ activity: "failed", unread: true });
-    expect(host.sessions.get("broken")?.lastError).toBeTruthy();
-    expect(host.sessions.get("fresh")).toBeDefined();
-    // The resume never reached session creation: the managed path was already unreachable.
-    expect(create).toHaveBeenCalledTimes(1);
+    expect(first.id).not.toBe(second.id);
+    expect(first.id).not.toBe("saved");
+    const firstRow = host.sessions.get(first.id)!;
+    const secondRow = host.sessions.get(second.id)!;
+    expect(firstRow.sessionFile).toBeTruthy();
+    expect(secondRow.sessionFile).toBeTruthy();
+    expect(firstRow.sessionFile).not.toBe(secondRow.sessionFile);
+    expect(existsSync(firstRow.sessionFile!)).toBe(true);
+    expect(existsSync(secondRow.sessionFile!)).toBe(true);
+    // The older session keeps its row, its history file and its draft.
+    expect(host.sessions.get("saved")).toMatchObject({ activity: "inactive", sessionFile: olderHistory, draft: "kept draft" });
+    expect(existsSync(olderHistory)).toBe(true);
   });
 
-  it("reports a resume failure that happens after the managed-file check", async () => {
-    const agentDir = agentRoot();
-    const sessionFile = join(agentDir, "sessions", "--tmp-project--", "unreadable.jsonl");
-    mkdirSync(join(agentDir, "sessions", "--tmp-project--"), { recursive: true });
-    writeFileSync(sessionFile, "not a session\n");
-    const host = new NativeSessionHost(agentDir, () => ({} as Terminal));
-    host.sessions.set("broken", { id: "broken", cwd: "/tmp/project", name: "Project", activity: "inactive", running: false, prompts: 0, unread: false, lastActivityAt: 500, sessionFile });
-    vi.spyOn(host, "create").mockImplementation(async (_cwd, _trusted, _parent, options) => {
-      if (options?.sessionFile) throw new Error("Managed history is unreadable");
-      return stubRecord("fresh", _cwd);
-    });
+  it("rejects when a new session cannot start, so the host keeps its previous foreground", async () => {
+    const host = new NativeSessionHost(agentRoot(), () => ({} as Terminal));
+    withView(host, "home", "/tmp/other", 100);
+    vi.spyOn(host, "create").mockRejectedValue(new Error("Not a directory: /tmp/gone"));
 
-    const result = await host.ensureSessionForCwd("/tmp/project", () => true);
-
-    expect(result.id).toBe("fresh");
-    expect(result.launchError).toContain("Managed history is unreadable");
-    expect(host.sessions.get("broken")?.activity).toBe("failed");
+    await expect(host.launchSessionForCwd("/tmp/gone", () => true)).rejects.toThrow("Not a directory: /tmp/gone");
+    expect(host.sessions.get("home")?.view).toBeDefined();
   });
 });

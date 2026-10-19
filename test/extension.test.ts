@@ -182,4 +182,28 @@ describe("launching Pi in a directory", () => {
     await commands.get("agents")!.handler("", ctx);
     expect(attach).toHaveBeenCalledWith(expect.anything(), expect.anything(), { takeover: false });
   });
+
+  it("reconnects after an internal host restart without relaunching a session or opening the board", async () => {
+    // The host replaced itself from inside the startup view: the reconnect is the same
+    // attachment, so it must stay on the session view and must not start another session.
+    attach.mockResolvedValueOnce({ reason: "Managed sessions stopped. Returned to Pi.", quitFrontend: false, restartHost: true });
+    const { ctx } = fixture({ reason: "startup" });
+    await vi.waitFor(() => expect(attach).toHaveBeenCalledTimes(2));
+    expect(attach).toHaveBeenNthCalledWith(1, expect.anything(), expect.anything(), { openBoard: false, launchCwd: ctx.cwd });
+    const reconnect = attach.mock.calls[1]![2] as Record<string, unknown>;
+    expect(reconnect).not.toHaveProperty("launchCwd");
+    expect(reconnect.openBoard).toBe(false);
+    expect(ensure).toHaveBeenNthCalledWith(2, ctx.cwd, true, expect.any(String), expect.objectContaining({ autoUpdateHost: false }));
+    expect(attach).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the command center on a reconnect after an internal host restart from /agents", async () => {
+    attach.mockResolvedValueOnce({ reason: "Managed sessions stopped. Returned to Pi.", quitFrontend: false, restartHost: true });
+    const { commands, ctx } = fixture();
+    await commands.get("agents")!.handler("", ctx);
+    expect(attach).toHaveBeenNthCalledWith(1, expect.anything(), expect.anything(), { takeover: false });
+    expect(attach).toHaveBeenNthCalledWith(2, expect.anything(), expect.anything(), { takeover: false });
+    expect(attach.mock.calls[1]![2]).not.toHaveProperty("launchCwd");
+    expect(attach.mock.calls[1]![2]).not.toHaveProperty("openBoard");
+  });
 });

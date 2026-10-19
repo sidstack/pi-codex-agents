@@ -52,6 +52,9 @@ export async function startNativeDaemon(cwd, config = Object.freeze(loadConfig()
     let ending = false;
     let exitMenu = false;
     let initializing = true;
+    // The Home session this host created while starting up. It belongs to the frontend
+    // launch that started this host, so only that launch's attachment may claim it.
+    let launchHomeId;
     const server = createServer(handleConnection);
     let saved;
     if (existsSync(paths.registry)) {
@@ -313,6 +316,7 @@ export async function startNativeDaemon(cwd, config = Object.freeze(loadConfig()
         if (!host.sessions.has("home")) {
             const directory = existsSync(cwd) ? cwd : homedir();
             await host.create(directory, trusted(directory), undefined, { id: "home", name: "Home" });
+            launchHomeId = "home";
         }
         await host.refreshFeatures();
         host.activeId = saved?.activeId && host.sessions.get(saved.activeId)?.view ? saved.activeId : "home";
@@ -368,22 +372,26 @@ export async function startNativeDaemon(cwd, config = Object.freeze(loadConfig()
         }
         attached = socket;
         host.foregroundVisible = true;
+        // Any attachment consumes the startup Home: a second frontend, a manual /agents or a
+        // reconnect after an internal restart all get their own view instead of that session.
+        const claimHomeId = launchHomeId;
+        launchHomeId = undefined;
         hub.dimensions(Number(message.columns) || 100, Number(message.rows) || 30, Boolean(message.kitty));
-        // A frontend launches Pi in a directory, so the host shows a session for that
-        // directory instead of whatever another frontend last looked at. A failure here
-        // never breaks the attachment: the previous foreground session stays usable.
+        // A frontend launches Pi in a directory, so the host gives that launch its own
+        // session for the directory instead of reopening the last foreground session.
+        // A failure here never breaks the attachment: the previous foreground session stays usable.
         const launchCwd = typeof message.launchCwd === "string" && message.launchCwd.startsWith("/") ? message.launchCwd : undefined;
         let launchError;
         // Preparing the target does not start its interactive view.
         let targetId = host.activeId;
         if (launchCwd) {
             try {
-                const target = await host.ensureSessionForCwd(launchCwd, trusted);
+                const target = await host.launchSessionForCwd(launchCwd, trusted, claimHomeId);
                 targetId = target.id;
                 launchError = target.launchError;
             }
             catch (error) {
-                launchError = `Could not open a session for ${launchCwd}: ${error instanceof Error ? error.message : String(error)}`;
+                launchError = `Could not start a session for ${launchCwd}: ${error instanceof Error ? error.message : String(error)}`;
                 console.error(launchError);
             }
             // The frontend may have gone away while the target was prepared. Never hand a
