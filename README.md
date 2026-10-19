@@ -30,11 +30,12 @@ session history and app state, so they are available if you reinstall later.
 
 ## Open your sessions
 
-Launching Pi in a directory attaches it to a managed session **for that directory**: a new
-session with its own history every time, so each launch starts fresh. Sessions from earlier
-launches of that directory stay available in the command center with their history and
-drafts. You land in that session's editor, not in the command center. Set `autoAttach: false`
-to keep ordinary Pi at startup and enter the host yourself with `/agents` or Left Arrow.
+By default, launching Pi in a directory leaves it ordinary Pi. Set `autoAttach: true` and
+launching attaches it to a managed session **for that directory**: a new session with its own
+history every time, so each launch starts fresh. Sessions from earlier launches of that
+directory stay available in the command center with their history and drafts. You land in that
+session's editor, not in the command center. With the setting off, enter the host yourself with
+`/agents` or Left Arrow.
 
 | Control | Action |
 | --- | --- |
@@ -126,7 +127,7 @@ Create `~/.pi/agent/pi-agents/config.json` to override these defaults:
 {
   "autoName": true,
   "historyImport": true,
-  "autoAttach": true,
+  "autoAttach": false,
   "leftArrowEntry": true,
   "commandCenterShortcut": true,
   "sessionCycling": true,
@@ -145,8 +146,10 @@ Disabling history import hides untouched foreign histories and keeps managed cop
 Disabling every optional feature still leaves `/agents`, creation, switching,
 restoration, terminal attachment, and explicit stop available.
 
-`autoAttach: false` leaves the Pi you launched in ordinary Pi; the host still starts on the
-first `/agents`, and every other control above is unchanged.
+`autoAttach` is off by default, so the Pi you launched stays ordinary Pi and the host starts on
+the first `/agents`. Set it to `true` to attach a new session for the launch directory at
+startup. The host serves that attach the same way either way, and every other control above is
+unchanged.
 
 ## Choosing a directory for a new session
 

@@ -141,7 +141,7 @@ reconnect after an internal host restart — claims nothing and adds no session,
 foreground session and every other row untouched. Sessions already in
 that directory keep their rows, managed histories and drafts. If the new session cannot
 start, the frontend reports the failure rather than attaching silently. The frontend attaches
-on Pi startup when `autoAttach` is enabled (default), once per frontend process and only for
+on Pi startup when `autoAttach` is enabled (off by default), once per frontend process and only for
 its first session, so a later `/new`, resume, or `/reload` in ordinary Pi keeps that Pi's
 terminal. `autoAttach` is frontend configuration only: the host serves the same attach
 whether a frontend asked for it or the user pressed `/agents`.

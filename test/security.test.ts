@@ -47,10 +47,17 @@ describe("filesystem boundaries", () => {
 });
 
 describe("configuration", () => {
-  it("defaults to automatic history import, a full-screen board, and a one hour idle timeout", () => {
+  it("defaults to automatic history import, a full-screen board, a one hour idle timeout, and no launch attachment", () => {
     expect(loadConfig(temporary())).toEqual(DEFAULT_CONFIG);
     expect(DEFAULT_CONFIG.idleTimeoutMs).toBe(3_600_000);
     expect(DEFAULT_CONFIG.boardFullscreen).toBe(true);
+    expect(DEFAULT_CONFIG.autoAttach).toBe(false);
+  });
+
+  it("accepts launch attachment at startup", () => {
+    const root = temporary(); mkdirSync(join(root, "pi-agents"));
+    writeFileSync(join(root, "pi-agents", "config.json"), '{"autoAttach":true}');
+    expect(loadConfig(root).autoAttach).toBe(true);
   });
 
   it("accepts a framed command center", () => {

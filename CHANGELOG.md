@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `autoAttach` now defaults to `false`: launching Pi in a directory stays ordinary Pi and starts
+  the host on the first `/agents`. Set `autoAttach: true` to attach a new managed session for the
+  launch directory at startup.
+
 ## 1.1.0-beta.2 — 2026-10-17
 
 - Complete attachment before waiting for answers to startup dialogs, keeping those dialogs
