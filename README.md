@@ -30,12 +30,13 @@ session history and app state, so they are available if you reinstall later.
 
 ## Open your sessions
 
-By default, launching Pi in a directory leaves it ordinary Pi. Set `autoAttach: true` and
-launching attaches it to a managed session **for that directory**: a new session with its own
-history every time, so each launch starts fresh. Sessions from earlier launches of that
-directory stay available in the command center with their history and drafts. You land in that
-session's editor, not in the command center. With the setting off, enter the host yourself with
-`/agents` or Left Arrow.
+By default, launching Pi in a directory attaches it to a managed session **for that directory**:
+a new session with its own history every time, so each launch starts fresh. Sessions from earlier
+launches of that directory stay available in the command center with their history and drafts.
+You land in that session's editor, not in the command center. Set `autoAttach: false` to keep
+ordinary Pi at startup and enter the host yourself with `/agents` or Left Arrow. Set
+`resumeLastSession: true` to reopen the directory's last session on launch instead of starting a
+new one.
 
 | Control | Action |
 | --- | --- |
@@ -127,7 +128,8 @@ Create `~/.pi/agent/pi-agents/config.json` to override these defaults:
 {
   "autoName": true,
   "historyImport": true,
-  "autoAttach": false,
+  "autoAttach": true,
+  "resumeLastSession": false,
   "leftArrowEntry": true,
   "commandCenterShortcut": true,
   "sessionCycling": true,
@@ -146,10 +148,13 @@ Disabling history import hides untouched foreign histories and keeps managed cop
 Disabling every optional feature still leaves `/agents`, creation, switching,
 restoration, terminal attachment, and explicit stop available.
 
-`autoAttach` is off by default, so the Pi you launched stays ordinary Pi and the host starts on
-the first `/agents`. Set it to `true` to attach a new session for the launch directory at
-startup. The host serves that attach the same way either way, and every other control above is
-unchanged.
+`autoAttach: false` leaves the Pi you launched in ordinary Pi; the host still starts on the
+first `/agents`, and every other control above is unchanged.
+
+`resumeLastSession: true` makes a launch reopen the directory's last session — a live one, else
+its saved history and draft resumed in place, else a new session — instead of starting a fresh
+one. It belongs to the host, so restart the host after changing it; `autoAttach` is read by the
+frontend.
 
 ## Choosing a directory for a new session
 

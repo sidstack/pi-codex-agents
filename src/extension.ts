@@ -93,7 +93,7 @@ export default function piAgents(pi: ExtensionAPI): void {
     } finally { opening = false; }
   };
 
-  /** Launching Pi in a directory attaches it to a new managed session for that directory. */
+  /** Launching Pi in a directory attaches it to a session for that directory: a new one, or its last one with resumeLastSession. */
   const attachLaunchSession = (ctx: ExtensionContext): void => {
     if (!launchPending || launchAttached || opening) return;
     // A startup dialog belongs to ordinary Pi. Wait for it instead of covering it.

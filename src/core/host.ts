@@ -307,8 +307,8 @@ export async function startNativeDaemon(cwd: string, config: Readonly<Config> = 
     const claimHomeId = launchHomeId;
     launchHomeId = undefined;
     hub.dimensions(Number(message.columns) || 100, Number(message.rows) || 30, Boolean(message.kitty));
-    // A frontend launches Pi in a directory, so the host gives that launch its own
-    // session for the directory instead of reopening the last foreground session.
+    // A frontend launches Pi in a directory, so the host gives that launch a session for the
+    // directory: a new one by default, or the directory's last session when resumeLastSession is on.
     // A failure here never breaks the attachment: the previous foreground session stays usable.
     const launchCwd = typeof message.launchCwd === "string" && message.launchCwd.startsWith("/") ? message.launchCwd : undefined;
     let launchError: string | undefined;

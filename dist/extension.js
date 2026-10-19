@@ -98,7 +98,7 @@ export default function piAgents(pi) {
             opening = false;
         }
     };
-    /** Launching Pi in a directory attaches it to a new managed session for that directory. */
+    /** Launching Pi in a directory attaches it to a session for that directory: a new one, or its last one with resumeLastSession. */
     const attachLaunchSession = (ctx) => {
         if (!launchPending || launchAttached || opening)
             return;

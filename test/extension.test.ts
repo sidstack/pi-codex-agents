@@ -9,8 +9,7 @@ vi.mock("../src/pi/client.js", () => ({ ensureNativeConnection: ensure, stopNati
 vi.mock("../src/pi/attachment.js", () => ({ attachTerminal: attach }));
 import extension from "../src/extension.js";
 
-function fixture(event: { reason?: string } = {}, config?: Record<string, unknown>) {
-  if (config) writeFileSync(join(process.env.PI_AGENTS_DIR!, "config.json"), JSON.stringify(config));
+function fixture(event: { reason?: string } = {}) {
   const handlers = new Map<string, (event: unknown, ctx: ExtensionContext) => void>();
   const commands = new Map<string, { handler: (args: string, ctx: ExtensionContext) => Promise<void> }>();
   const api = {
@@ -148,18 +147,15 @@ describe("Pi extension entry point", () => {
 });
 
 describe("launching Pi in a directory", () => {
-  // Launch attachment is off by default, so these cases opt in.
-  const attached = { autoAttach: true };
-
   it("attaches a managed session for that directory without opening the board", async () => {
-    const { ctx } = fixture({ reason: "startup" }, attached);
+    const { ctx } = fixture({ reason: "startup" });
     await vi.waitFor(() => expect(attach).toHaveBeenCalledOnce());
     expect(ensure).toHaveBeenCalledWith(ctx.cwd, true, expect.any(String), expect.objectContaining({ autoUpdateHost: true }));
     expect(attach).toHaveBeenCalledWith(expect.anything(), expect.anything(), { openBoard: false, launchCwd: ctx.cwd });
   });
 
   it("attaches once: a later /new, resume, or reload leaves ordinary Pi alone", async () => {
-    const { ctx, handlers } = fixture({ reason: "startup" }, attached);
+    const { ctx, handlers } = fixture({ reason: "startup" });
     await vi.waitFor(() => expect(attach).toHaveBeenCalledOnce());
     for (const reason of ["new", "resume", "reload", "startup"]) {
       handlers.get("session_start")?.({ reason }, ctx);
@@ -168,7 +164,8 @@ describe("launching Pi in a directory", () => {
     expect(attach).toHaveBeenCalledOnce();
   });
 
-  it("stays in ordinary Pi at startup: launch attachment is off by default", async () => {
+  it("stays in ordinary Pi at startup when autoAttach is off", async () => {
+    writeFileSync(join(process.env.PI_AGENTS_DIR!, "config.json"), JSON.stringify({ autoAttach: false }));
     fixture({ reason: "startup" });
     await new Promise((done) => setTimeout(done, 50));
     expect(attach).not.toHaveBeenCalled();
@@ -176,7 +173,7 @@ describe("launching Pi in a directory", () => {
 
   it("reports a launch failure instead of attaching silently", async () => {
     attach.mockResolvedValueOnce({ reason: "Returned to Pi.", quitFrontend: false, launchError: "Could not open a session for /tmp/project: Not a directory" });
-    const { ctx } = fixture({ reason: "startup" }, attached);
+    const { ctx } = fixture({ reason: "startup" });
     await vi.waitFor(() => expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("Could not open a session"), "error"));
   });
 
@@ -190,7 +187,7 @@ describe("launching Pi in a directory", () => {
     // The host replaced itself from inside the startup view: the reconnect is the same
     // attachment, so it must stay on the session view and must not start another session.
     attach.mockResolvedValueOnce({ reason: "Managed sessions stopped. Returned to Pi.", quitFrontend: false, restartHost: true });
-    const { ctx } = fixture({ reason: "startup" }, attached);
+    const { ctx } = fixture({ reason: "startup" });
     await vi.waitFor(() => expect(attach).toHaveBeenCalledTimes(2));
     expect(attach).toHaveBeenNthCalledWith(1, expect.anything(), expect.anything(), { openBoard: false, launchCwd: ctx.cwd });
     const reconnect = attach.mock.calls[1]![2] as Record<string, unknown>;

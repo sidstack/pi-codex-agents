@@ -22,9 +22,7 @@ with tempfile.TemporaryDirectory(prefix="pi-agents-launch-") as temp:
     for directory in (agent, alpha, beta):
         directory.mkdir()
     (agent / "settings.json").write_text(json.dumps({"quietStartup": True, "tui": {"mode": "fullscreen"}}))
-    # Launch attachment is off by default, so this harness opts in: it covers the on path.
-    (agent / "pi-agents").mkdir()
-    (agent / "pi-agents" / "config.json").write_text(json.dumps({"autoAttach": True}))
+    # The default is autoAttach: true. This harness leaves it at the default on purpose.
     env = {**os.environ, "PI_CODING_AGENT_DIR": str(agent), "PI_AGENTS_NATIVE_DIR": str(root / "host"),
            "PI_AGENTS_IDLE_MS": "0", "PI_OFFLINE": "1", "TERM": "xterm-256color"}
     env.pop("PI_AGENTS_NATIVE_DAEMON", None)

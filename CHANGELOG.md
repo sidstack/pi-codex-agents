@@ -2,9 +2,11 @@
 
 ## Unreleased
 
-- `autoAttach` now defaults to `false`: launching Pi in a directory stays ordinary Pi and starts
-  the host on the first `/agents`. Set `autoAttach: true` to attach a new managed session for the
-  launch directory at startup.
+- Add `resumeLastSession` (default `false`). A launch in a directory keeps starting a new
+  managed session. Set it to `true` to reopen that directory's last session instead: a live one,
+  else its saved history and draft resumed in place, else a new session, with an unreachable
+  saved history reported and its row marked failed. The host reads it at startup, so restart the
+  host after changing it.
 
 ## 1.1.0-beta.2 — 2026-10-17
 

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { Terminal, TUI } from "@earendil-works/pi-tui";
 import { NativeSessionHost, type Session } from "../src/core/sessions.js";
+import { DEFAULT_CONFIG } from "../src/config.js";
 import { TerminalLease } from "../src/core/terminal.js";
 
 const roots: string[] = [];
@@ -164,5 +165,69 @@ describe("the session a directory launches into", () => {
 
     await expect(host.launchSessionForCwd("/tmp/gone", () => true)).rejects.toThrow("Not a directory: /tmp/gone");
     expect(host.sessions.get("home")?.view).toBeDefined();
+  });
+});
+
+describe("a launch that reopens the directory's last session", () => {
+  function resumeHost(agentDir: string): NativeSessionHost {
+    return new NativeSessionHost(agentDir, () => ({} as Terminal), { ...DEFAULT_CONFIG, resumeLastSession: true });
+  }
+
+  it("reopens the most recently active live session instead of starting another", async () => {
+    const host = resumeHost(agentRoot());
+    withView(host, "home", "/tmp/other", 1000);
+    withView(host, "older", "/tmp/project", 200);
+    withView(host, "recent", "/tmp/project", 900);
+    const create = vi.spyOn(host, "create");
+
+    const result = await host.launchSessionForCwd("/tmp/project", () => true, "home");
+
+    expect(result).toEqual({ id: "recent" });
+    expect(create).not.toHaveBeenCalled();
+    // No extra row: the launch took over the directory's last session.
+    expect(host.sessions.size).toBe(3);
+  });
+
+  it("resumes the saved history and draft in place when no live session is open", async () => {
+    const agentDir = agentRoot();
+    const directory = join(agentDir, "sessions", "--tmp-project--");
+    mkdirSync(directory, { recursive: true });
+    const sessionFile = join(directory, "session.jsonl");
+    writeFileSync(sessionFile, '{"type":"session","cwd":"/tmp/project"}\n');
+    const host = resumeHost(agentDir);
+    host.sessions.set("saved", { id: "saved", cwd: "/tmp/project", name: "Project", activity: "inactive", running: false, prompts: 0, unread: false, lastActivityAt: 500, sessionFile, draft: "kept draft" });
+    const create = vi.spyOn(host, "create").mockResolvedValue(stubRecord("saved", "/tmp/project"));
+
+    const result = await host.launchSessionForCwd("/tmp/project", () => true);
+
+    expect(result).toEqual({ id: "saved" });
+    // The same id, history file and draft come back: the launch resumed in place.
+    expect(create).toHaveBeenCalledWith("/tmp/project", true, undefined, expect.objectContaining({ id: "saved", sessionFile, draft: "kept draft" }));
+  });
+
+  it("starts a usable session and marks the row failed when the saved history is unreachable", async () => {
+    const agentDir = agentRoot();
+    const host = resumeHost(agentDir);
+    // Outside the managed sessions directory, so opening it is refused.
+    host.sessions.set("saved", { id: "saved", cwd: "/tmp/project", name: "Project", activity: "inactive", running: false, prompts: 0, unread: false, lastActivityAt: 500, sessionFile: join(agentDir, "outside.jsonl") });
+    const create = vi.spyOn(host, "create").mockResolvedValue(stubRecord("fresh", "/tmp/project"));
+
+    const result = await host.launchSessionForCwd("/tmp/project", () => true);
+
+    expect(result.id).toBe("fresh");
+    expect(result.launchError).toMatch(/Could not resume saved session Project in \/tmp\/project/);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(host.sessions.get("saved")?.activity).toBe("failed");
+  });
+
+  it("still starts a new session when the directory has none", async () => {
+    const host = resumeHost(agentRoot());
+    withView(host, "home", "/tmp/other", 100);
+    const create = vi.spyOn(host, "create").mockResolvedValue(stubRecord("fresh", "/tmp/project"));
+
+    const result = await host.launchSessionForCwd("/tmp/project", () => true, "home");
+
+    expect(result).toEqual({ id: "fresh" });
+    expect(create).toHaveBeenCalledWith("/tmp/project", true);
   });
 });

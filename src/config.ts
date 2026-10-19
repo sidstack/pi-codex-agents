@@ -6,6 +6,7 @@ export interface Config {
   historyImport: boolean;
   autoName: boolean;
   autoAttach: boolean;
+  resumeLastSession: boolean;
   leftArrowEntry: boolean;
   commandCenterShortcut: boolean;
   sessionCycling: boolean;
@@ -17,7 +18,7 @@ export interface Config {
 }
 
 export const DEFAULT_CONFIG: Readonly<Config> = Object.freeze({
-  autoName: true, historyImport: true, autoAttach: false, leftArrowEntry: true, commandCenterShortcut: true,
+  autoName: true, historyImport: true, autoAttach: true, resumeLastSession: false, leftArrowEntry: true, commandCenterShortcut: true,
   sessionCycling: true, showStatus: true, autoInactive: true, autoUpdateHost: true,
   boardFullscreen: true, idleTimeoutMs: 3_600_000,
 });

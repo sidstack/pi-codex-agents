@@ -22,8 +22,8 @@ with tempfile.TemporaryDirectory(prefix="pi-agents-extension-") as temp:
     for directory in (agent, alpha, beta):
         directory.mkdir()
     (agent / "settings.json").write_text(json.dumps({"quietStartup": True, "tui": {"mode": "fullscreen"}}))
-    # These scenarios start in ordinary Pi and enter the host by key press, so launch
-    # attachment stays off here (it is off by default). scripts/smoke-launch.py covers it on.
+    # These scenarios start in ordinary Pi and enter the host by key press, so the
+    # launch attachment default is switched off here. scripts/smoke-launch.py covers it on.
     (agent / "pi-agents").mkdir()
     (agent / "pi-agents" / "config.json").write_text(json.dumps({"autoAttach": False}))
     env = {**os.environ, "PI_CODING_AGENT_DIR": str(agent), "PI_AGENTS_NATIVE_DIR": str(root / "host"),
