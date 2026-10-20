@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.0](https://github.com/sidstack/pi-codex-agents/compare/v1.0.1...v1.1.0) (2026-10-20)
+
+### Features
+
+* automate stable and branch releases ([55a39ad](https://github.com/sidstack/pi-codex-agents/commit/55a39ad93edfadf791f9121ebe7b47827aea4b5b))
+* automate stable and branch releases ([#4](https://github.com/sidstack/pi-codex-agents/issues/4)) ([463bda7](https://github.com/sidstack/pi-codex-agents/commit/463bda760795468467e3ae852b784db3cf50b5ef))
+
+### Bug Fixes
+
+* keep hyphen runs in branch release identifiers ([60ffa9b](https://github.com/sidstack/pi-codex-agents/commit/60ffa9b9a25df70f11be334dc1ef985aca225086))
+* name the semantic-release git credential GITHUB_TOKEN ([451e100](https://github.com/sidstack/pi-codex-agents/commit/451e1009e03e4abaeb76b6d88ae383ae5952f3de))
+* scope release branches and full dependency audit ([454a155](https://github.com/sidstack/pi-codex-agents/commit/454a155a4c6733369ada87da39a05889286753b4))
+
 ## [1.1.0-feat-automatic-releases-beta.1](https://github.com/sidstack/pi-codex-agents/compare/v1.0.1...v1.1.0-feat-automatic-releases-beta.1) (2026-10-20)
 
 ### Features
