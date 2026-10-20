@@ -15,6 +15,10 @@ export function commandCenterSize(columns, rows, fullscreen = false) {
         height: Math.max(1, Math.min(rows - 2, Math.floor(rows * 0.88))),
     };
 }
+/** Home-relative display for paths, shared by the board and the directory picker. */
+export function abbreviatePath(cwd) {
+    return cwd === homedir() ? "~" : cwd.startsWith(`${homedir()}/`) ? `~${cwd.slice(homedir().length)}` : cwd;
+}
 /** A spacious dashboard in a native overlay, sized from the physical terminal. */
 export class CommandCenter {
     fleet;
@@ -55,6 +59,10 @@ export class CommandCenter {
             return this.done(undefined);
         if (matchesKey(data, "ctrl+n"))
             return this.done({ kind: "new" });
+        // Ctrl+Shift+N is accepted when the terminal distinguishes it; Ctrl+P is the
+        // portable chord, because legacy terminals report Ctrl+Shift+letter as Ctrl+letter.
+        if (matchesKey(data, "ctrl+shift+n") || matchesKey(data, "ctrl+p"))
+            return this.done({ kind: "pick" });
         if (matchesKey(data, "ctrl+q"))
             return this.done({ kind: "exit" });
         // The overlay owns input, so Pi's own suspend key has to be routed here.
@@ -93,7 +101,7 @@ export class CommandCenter {
             return clipped + " ".repeat(Math.max(0, size - visibleWidth(clipped)));
         };
         const pair = (left, right) => pad(left, Math.max(1, inner - visibleWidth(right) - 2)) + "  " + right;
-        const path = (cwd) => plainText(cwd === homedir() ? "~" : cwd.startsWith(`${homedir()}/`) ? `~${cwd.slice(homedir().length)}` : cwd);
+        const path = abbreviatePath;
         const all = [...this.fleet.sessions.values()];
         // Unnamed sessions are labelled by their project directory. Only duplicates in the
         // same directory need a number, and it is assigned in fleet order so the label
@@ -136,7 +144,7 @@ export class CommandCenter {
                 selected ? pair(this.theme.bold(title(selected)), fg(COLOR[selected.activity], STATUS[selected.activity])) : "",
                 selected ? fg(selected.lastError ? "error" : "muted", plainText(selected.lastError || path(selected.cwd))) : "",
             ] : []),
-            fg("muted", inner >= 72 ? "↑/↓ select   Enter open   Ctrl+N new   Tab filter   Esc back" : "Enter open · Ctrl+N new · Tab filter · Esc back"),
+            fg("muted", inner >= 72 ? "↑/↓ select   Enter open   Ctrl+N new here   Ctrl+P new in another directory   Tab filter" : "Enter open · Ctrl+N new here · Ctrl+P new elsewhere · Tab filter"),
             fg("dim", inner >= 72 ? "Ctrl+X abort run   Ctrl+K stop   Ctrl+Z back to Pi   Ctrl+Q quit Pi" : "Ctrl+X abort · Ctrl+K stop · Ctrl+Q quit"),
         ];
         const budget = Math.max(1, height - chrome - 2 - lines.length - footer.length);
@@ -163,7 +171,7 @@ export class CommandCenter {
             lines.push(entry.selected ? this.theme.bg("selectedBg", line) : line);
         }
         if (!entries.length)
-            lines.push(fg("muted", "No matching sessions. Ctrl+N starts a new one."));
+            lines.push(fg("muted", "No matching sessions. Ctrl+N starts one here, Ctrl+P in another directory."));
         while (lines.length < height - chrome - 2 - footer.length)
             lines.push("");
         lines.push(...footer);

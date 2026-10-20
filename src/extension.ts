@@ -4,7 +4,7 @@ import { loadConfig, type Config } from "./config.js";
 import type { Activity } from "./core/fleet.js";
 import { commandCenterKey } from "./features/navigation.js";
 import { statusParts } from "./features/status.js";
-import { attachTerminal } from "./pi/attachment.js";
+import { attachTerminal, type AttachOptions } from "./pi/attachment.js";
 import { ensureNativeConnection, stopNativeHost } from "./pi/client.js";
 import { VERSION, BUILD_ID } from "./version.js";
 import { countUnsettled, type ActivitySnapshot } from "./core/activity.js";
@@ -24,12 +24,18 @@ export default function piAgents(pi: ExtensionAPI): void {
   let prompts = 0;
   let frontendConfig: Config | undefined;
   let removeInput: (() => void) | undefined;
+  // Only the first session of the frontend process may attach itself; a later /new,
+  // resume, or /reload in ordinary Pi must leave that Pi alone.
+  let launchAttached = false;
+  let launchPending = false;
+  let launchCtx: ExtensionContext | undefined;
 
-  const openOnce = async (ctx: ExtensionContext, takeover: boolean): Promise<boolean> => {
+  const openOnce = async (ctx: ExtensionContext, options: AttachOptions): Promise<boolean> => {
     // Connect before stopping Pi so startup failures leave the editor usable.
     const connection = await ensureNativeConnection(ctx.cwd, true, getAgentDir(), { autoUpdateHost: frontendConfig?.autoUpdateHost !== false });
     let failure: unknown;
     let notice = "";
+    let launchError = "";
     let quitFrontend = false;
     let restartHost = false;
     try {
@@ -38,8 +44,9 @@ export default function piAgents(pi: ExtensionAPI): void {
           void (async () => {
             tui.stop();
             try {
-              const result = await attachTerminal(connection, tui.terminal, takeover);
+              const result = await attachTerminal(connection, tui.terminal, options);
               notice = result.reason;
+              launchError = result.launchError ?? "";
               quitFrontend = result.quitFrontend;
               restartHost = result.restartHost;
             } catch (error) { failure = error; }
@@ -57,6 +64,7 @@ export default function piAgents(pi: ExtensionAPI): void {
     } finally { connection.socket.destroy(); }
     if (failure) throw failure;
     if (notice) ctx.ui.notify(notice, "info");
+    if (launchError) ctx.ui.notify(launchError, "error");
     if (connection.hostNotice) ctx.ui.notify(connection.hostNotice, "info");
     // A managed view owns no process terminal. When the host chose to quit, Pi's own
     // orderly shutdown ends the frontend after the terminal has been restored.
@@ -64,20 +72,35 @@ export default function piAgents(pi: ExtensionAPI): void {
     return restartHost;
   };
 
-  const open = async (ctx: ExtensionContext, takeover = false): Promise<void> => {
+  const open = async (ctx: ExtensionContext, options: AttachOptions = {}): Promise<void> => {
     if (!ctx.hasUI || ctx.mode !== "tui") throw new Error("/agents requires native interactive Pi");
     if (opening) return;
+    // Any deliberate open consumes the startup attachment, so it cannot fire afterwards.
+    launchPending = false;
+    launchAttached = true;
     opening = true;
     try {
-      while (await openOnce(ctx, takeover)) {
+      while (await openOnce(ctx, options)) {
         // The host replaced itself from inside a managed view: start the installed build
-        // and reconnect, so /agents restart is one command wherever it is typed.
+        // and reconnect, so /agents restart is one command wherever it is typed. The
+        // reconnect is a reattachment, not a new launch: it carries no launch directory and
+        // keeps the caller's board choice, so a startup attach stays on its session view.
         const replacement = await ensureNativeConnection(ctx.cwd, true, getAgentDir(), { autoUpdateHost: false });
         replacement.socket.end();
         ctx.ui.notify("Agent host restarted with the current build.", "info");
-        takeover = false;
+        options = { takeover: false, ...(options.openBoard === false ? { openBoard: false } : {}) };
       }
     } finally { opening = false; }
+  };
+
+  /** Launching Pi in a directory attaches it to a session for that directory: a new one, or its last one with resumeLastSession. */
+  const attachLaunchSession = (ctx: ExtensionContext): void => {
+    if (!launchPending || launchAttached || opening) return;
+    // A startup dialog belongs to ordinary Pi. Wait for it instead of covering it.
+    if (prompts > 0) return;
+    launchPending = false;
+    launchAttached = true;
+    void open(ctx, { openBoard: false, launchCwd: ctx.cwd }).catch((error) => report(ctx, error));
   };
 
   const report = (ctx: ExtensionContext, error: unknown) => ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
@@ -86,7 +109,7 @@ export default function piAgents(pi: ExtensionAPI): void {
     handler: async (args, ctx) => {
       try {
         const command = args.trim();
-        if (!command || command === "takeover") { await open(ctx, command === "takeover"); return; }
+        if (!command || command === "takeover") { await open(ctx, { takeover: command === "takeover" }); return; }
         if (command === "leave") {
           ctx.ui.notify("This Pi is already outside the managed host. Use /agents to connect.", "info");
           return;
@@ -135,13 +158,12 @@ export default function piAgents(pi: ExtensionAPI): void {
   });
   // Pi reserves Ctrl+G for its external editor, so registerShortcut cannot
   // override it. The terminal-input hook runs before that built-in dispatch.
-  pi.on("session_start", (_event, ctx) => {
+  pi.on("session_start", (event, ctx) => {
     removeInput?.();
     prompts = 0;
     if (ctx.mode !== "tui") return;
     let config;
-    try { config = frontendConfig = Object.freeze(loadConfig(getAgentDir())); }
-    catch (error) { report(ctx, error); return; }
+    try { config = frontendConfig = Object.freeze(loadConfig(getAgentDir())); } catch (error) { report(ctx, error); return; }
     removeInput = ctx.ui.onTerminalInput((data) => {
       if (opening) return;
       const entry = commandCenterKey(config, data, ctx.ui.getEditorText() === "", prompts);
@@ -149,8 +171,18 @@ export default function piAgents(pi: ExtensionAPI): void {
       void open(ctx).catch((error) => report(ctx, error));
       return { consume: true };
     });
+    // Pi starts its UI before it initializes extensions, so the first session of this
+    // process can take over its own terminal. Deferred so Pi finishes its own startup.
+    if (config.autoAttach && !launchAttached && event.reason === "startup") {
+      launchPending = true;
+      launchCtx = ctx;
+      queueMicrotask(() => attachLaunchSession(ctx));
+    }
   });
   pi.on("ui_prompt_start", () => { prompts++; });
-  pi.on("ui_prompt_end", () => { prompts = Math.max(0, prompts - 1); });
+  pi.on("ui_prompt_end", () => {
+    prompts = Math.max(0, prompts - 1);
+    if (launchPending && launchCtx) attachLaunchSession(launchCtx);
+  });
   pi.on("session_shutdown", () => { removeInput?.(); removeInput = undefined; });
 }

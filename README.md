@@ -15,6 +15,14 @@ Requires Linux, Node 22.19+, and Pi **>=1.3.0 <1.4.0**; 1.3.0 is the tested base
 pi install npm:pi-codex-agents@latest
 ```
 
+To test the current prerelease, install the `beta` dist-tag after it is published, or
+install the tag straight from GitHub:
+
+```sh
+pi install npm:pi-codex-agents@beta
+pi install git:github.com/sidstack/pi-codex-agents@v1.1.0-beta.3
+```
+
 Restart Pi after installation, or run `/reload` in an open Pi session.
 
 To uninstall, run `pi remove npm:pi-codex-agents`. Uninstalling keeps managed
@@ -22,12 +30,21 @@ session history and app state, so they are available if you reinstall later.
 
 ## Open your sessions
 
+By default, launching Pi in a directory attaches it to a managed session **for that directory**:
+a new session with its own history every time, so each launch starts fresh. Sessions from earlier
+launches of that directory stay available in the command center with their history and drafts.
+You land in that session's editor, not in the command center. Set `autoAttach: false` to keep
+ordinary Pi at startup and enter the host yourself with `/agents` or Left Arrow. Set
+`resumeLastSession: true` to reopen the directory's last session on launch instead of starting a
+new one.
+
 | Control | Action |
 | --- | --- |
 | /agents or Ctrl+G | Open the command center |
 | Left Arrow, editor empty | Open the command center; drafts retain normal cursor movement |
 | Enter | Open selected session; automatically restore inactive sessions |
-| Ctrl+N | Create a session in another directory |
+| Ctrl+N | Create a session in the directory you are viewing |
+| Ctrl+P | Create a session in another directory, chosen by fuzzy search over known projects and nearby directories |
 | Ctrl+Alt+N / Ctrl+Alt+P | Cycle live views, including over pending dialogs |
 | Tab / Shift+Tab | Filter Active, Inactive, All |
 | Type | Search sessions and projects |
@@ -111,6 +128,8 @@ Create `~/.pi/agent/pi-agents/config.json` to override these defaults:
 {
   "autoName": true,
   "historyImport": true,
+  "autoAttach": true,
+  "resumeLastSession": false,
   "leftArrowEntry": true,
   "commandCenterShortcut": true,
   "sessionCycling": true,
@@ -128,6 +147,50 @@ variable `PI_AGENTS_IDLE_MS` overrides `idleTimeoutMs`; `0` disables inactivity.
 Disabling history import hides untouched foreign histories and keeps managed copies.
 Disabling every optional feature still leaves `/agents`, creation, switching,
 restoration, terminal attachment, and explicit stop available.
+
+`autoAttach: false` leaves the Pi you launched in ordinary Pi; the host still starts on the
+first `/agents`, and every other control above is unchanged.
+
+`resumeLastSession: true` makes a launch reopen the directory's last session — a live one, else
+its saved history and draft resumed in place, else a new session — instead of starting a fresh
+one. It belongs to the host, so restart the host after changing it; `autoAttach` is read by the
+frontend.
+
+## Choosing a directory for a new session
+
+Ctrl+N in the command center starts a session in the directory you are viewing, with no
+prompt. Ctrl+P (also Ctrl+Shift+N where the terminal distinguishes it) opens a directory
+choice that lists this directory, your recent projects, and completions for what you type:
+`~`, a relative path, a partial name, or a full path. ↑/↓ select, Tab completes the
+selection into the input, Enter chooses, and Esc cancels without creating anything.
+Directories that already hold a session are marked `existing`, so a project is never opened
+twice by accident. `/agents new [directory]` does the same thing from the command line.
+
+Typing searches fuzzily. A directory matches on its name first — exact, then prefix, then
+substring, then the letters in order — with a match anywhere in the full path as a weaker
+fallback, so `scr` still offers `~/work/screenshots`. Sessions you already have outrank
+plain directories of equal quality, and the list is capped at 40 rows; type more to narrow
+it.
+
+Each picker starts one bounded search of nearby directories in the background and keeps what
+it finds in its own snapshot: the directory you opened from, its parent, a shallow pass over
+your home directory, then the directories your sessions already know. It goes three levels
+deep (two under home), examines at most 3000 entries, gives up after a second, never
+traverses the filesystem root, never follows a symlink — a symlinked directory is skipped,
+not entered — and skips heavy trees such as `node_modules`, `.git`, `dist`, `build`,
+`vendor`, and hidden directories. Typing never restarts that background search: each
+keystroke only re-filters the snapshot the search has fed so far. Results arrive in batches
+and only merge into the snapshot, and cancelling ends the search.
+
+Typing a path is unchanged: `..`, `~/project`, and absolute paths resolve against the
+session the picker was opened from, a directory you type in full is offered first, and a
+trailing `/` lists what is inside it. Those per-directory completion listings keep their own
+bound (200 entries, a short-lived cache), independent of the background search: the picker
+says so when a listing is capped, and the names left out do not come back by typing — type
+the directory in full, or a trailing `/` to step into it, instead. An unreadable directory
+completes nothing instead of failing. While
+results change underneath you, the highlight follows the path you selected rather than its
+position in the list.
 
 ## Return to Pi and reconnect
 

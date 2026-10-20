@@ -94,12 +94,67 @@ The picker offers three filters: **Active** (ready, running, waiting, and failed
 that still hold a runtime), **Inactive** (unloaded after the idle timeout or explicitly
 stopped history), and **All**. Active is selected when the command center opens.
 
+The board owns its keys: Ctrl+N creates a session in the directory being viewed with no
+prompt, and Ctrl+P (Ctrl+Shift+N where the terminal distinguishes it) opens a separate
+directory choice. That choice lists this directory, the projects the fleet and history
+discovery already know, and completions for what the user types, resolving `~`, `..` and
+absolute paths against the session it was opened from. The completion listing for a typed
+path is bounded on its own (200 entries per directory, a short cache) and an unreadable
+directory completes nothing instead of failing. When a listing hits that bound the picker
+says so; entries past it stay hidden while the user types, so its hint points at the
+full-path fallback rather than promising that typing recovers them. Cancelling it
+aborts the work and creates nothing.
+
+`src/ui/path-index.ts` adds the fuzzy side of that choice: one bounded breadth-first scan
+per picker, never one per keystroke. Its roots are the opening directory, its parent, a
+shallow pass over the home directory, then the known project directories within the remaining
+root budget. Depth is capped (three below each root, two below home), as are entries (3000,
+a ceiling a caller cannot raise), results, queue size, roots, and wall-clock time; hitting a
+cap truncates the scan rather than throwing. The filesystem root is never traversed,
+symlinks are never followed — roots are validated with `lstat` so a symlinked cwd, home or
+known project is skipped — and heavy or hidden trees (`node_modules`, `.git`, `dist`,
+`build`, `vendor`, caches) are skipped. Discovered directories are reported in batches into
+the picker's own snapshot, which is re-filtered on each keystroke; a keystroke never starts a
+second scan, and aborting or closing the picker stops the scan and keeps only the partial
+result. `src/ui/path-score.ts` ranks a
+nonempty query by basename match quality (exact, prefix, substring, ordered subsequence,
+then full-path substring), with known sessions winning ties, before the candidate list is
+truncated. The highlight is anchored to the selected path, not its index, so batches that
+re-sort the listing do not move the user's choice. Every host-owned dialog, the board and this picker alike, is counted so it
+never reports its own session as needing input or routes its keys to a feature.
+
 The `/agents` command is registered twice, once per context, and each registration offers
 only the commands that context can honor. The frontend registration in `src/extension.ts`
 runs in ordinary Pi: open, `takeover`, `status`, `stop`, and `restart`; `leave` reports that
 this Pi is already detached. The host-side registration inside every managed view offers
 open, `new [directory]`, `status`, `stop` (which stops the host and returns the original Pi),
 `restart`, `leave`, and reports `takeover` as already attached. Session creation and terminal handoff use the core lifecycle operations.
+
+Attaching shows a session; the command center is a separate, explicit request. An attach can
+carry the frontend's own directory, and the host then gives that launch its own session for
+it: a new managed history every time, so launching Pi in a directory starts fresh instead of
+reopening whatever that directory was last used for. The only exception is the Home session
+the host created while starting up for that same launch, which its attachment claims instead
+of adding a second session beside it. Every new frontend startup in a directory gets a
+session of its own; an attach that carries no directory — a manual `/agents` open or the
+reconnect after an internal host restart — claims nothing and adds no session, leaving the
+foreground session and every other row untouched. Sessions already in
+that directory keep their rows, managed histories and drafts. If the new session cannot
+start, the frontend reports the failure rather than attaching silently. With
+`resumeLastSession: true` the launch instead reopens the directory's last session — a live one,
+else its saved managed history resumed in place, else a new session — and the startup Home claim
+is not consulted, so the most recently active session for that directory wins; it is that Home
+session in the usual case. The frontend attaches
+on Pi startup when `autoAttach` is enabled (default), once per frontend process and only for
+its first session, so a later `/new`, resume, or `/reload` in ordinary Pi keeps that Pi's
+terminal. `autoAttach` is frontend configuration only: the host serves the same attach
+whether a frontend asked for it or the user pressed `/agents`. `resumeLastSession` is host
+configuration and is read when the host starts.
+
+The attach handshake completes before waiting for the foreground view's interactive
+initialization, so startup dialogs can render and receive input without the request timeout
+limiting how long the user has to answer. A saved session whose managed history is
+unreachable keeps its failed row and reports the reason when it is opened.
 
 Optional behavior implements `SessionFeature` in `src/features/contracts.ts`.
 `configuredFeatures` is the single assembly point. The core accepts a feature list

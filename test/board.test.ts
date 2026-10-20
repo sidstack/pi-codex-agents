@@ -119,4 +119,18 @@ describe("native command center layout", () => {
       expect(board.render(70).join("\n")).not.toContain("Saved infra");
     } finally { board.dispose(); }
   });
+
+  it("routes Ctrl+N to a session here and Ctrl+P to a directory choice", () => {
+    const done = vi.fn();
+    const board = new CommandCenter(fleet(), theme, () => {}, done, () => 40, true);
+    try {
+      const text = board.render(120).join("\n");
+      expect(text).toContain("Ctrl+N new here");
+      expect(text).toContain("Ctrl+P new in another directory");
+      board.handleInput("\x0e");
+      expect(done).toHaveBeenLastCalledWith({ kind: "new" });
+      board.handleInput("\x10");
+      expect(done).toHaveBeenLastCalledWith({ kind: "pick" });
+    } finally { board.dispose(); }
+  });
 });

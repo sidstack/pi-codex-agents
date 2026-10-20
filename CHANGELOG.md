@@ -1,5 +1,50 @@
 # Changelog
 
+## 1.1.0-beta.3 — 2026-10-20
+
+- Launching Pi in a directory now starts a new managed session for that directory with its own
+  history every time, instead of resuming the session that directory already had. Sessions from
+  earlier launches of that directory stay available in the command center with their history and
+  drafts.
+- Ctrl+P now chooses a directory by fuzzy search over the directories the session knows plus one
+  bounded background scan: the directory opened from, its parent, a shallow pass over home, then
+  known session directories. A name matches first (exact, prefix, substring, letters in order), a
+  match anywhere in the full path is a weaker fallback, so `scr` still offers
+  `~/work/screenshots`; existing sessions outrank equal-quality plain directories and the list is
+  capped at 40 rows. The scan goes three levels deep (two under home), examines at most 3000
+  entries, gives up after a second, never traverses the filesystem root, never enters a symlinked
+  directory, skips heavy trees such as `node_modules`, `.git`, `dist`, `build`, `vendor`, and
+  hidden directories, and keeps its results in a snapshot that typing only re-filters.
+- Directory completion keeps its previous behavior alongside the search: `..`, `~/project`, and
+  absolute paths resolve against the session the picker opened from, a directory typed in full is
+  offered first, existing sessions are marked `existing`, a trailing `/` lists inside a directory
+  (that listing is capped at 200 entries and says so), an unreadable directory completes nothing
+  instead of failing, and the highlight follows the selected path while results change underneath.
+- Add `resumeLastSession` (default `false`). A launch in a directory keeps starting a new
+  managed session. Set it to `true` to reopen that directory's last session instead: a live one,
+  else its saved history and draft resumed in place, else a new session, with an unreachable
+  saved history reported and its row marked failed. The host reads it at startup, so restart the
+  host after changing it.
+
+## 1.1.0-beta.2 — 2026-10-17
+
+- Complete attachment before waiting for answers to startup dialogs, keeping those dialogs
+  visible and interactive. Report failed history resumes in the attached fallback
+  session while retaining the failed saved entry.
+
+## 1.1.0-beta.1 — 2026-10-16
+
+- Launch Pi in a directory and it attaches a managed session for that directory: a live
+  session is resumed, a saved managed history is restored in place, otherwise one session is
+  created. Attaching no longer forces the command center open. `autoAttach: false` restores
+  the previous startup, where ordinary Pi waits for `/agents` or Left Arrow.
+- Ctrl+N in the command center now starts a session in the directory being viewed with no
+  prompt. Ctrl+P (and Ctrl+Shift+N where the terminal distinguishes it) opens a directory
+  choice with this directory, recent projects, and bounded filesystem completion, `~` and
+  relative path resolution, existing-session markers, Tab completion, and Esc cancel.
+- Host-owned dialogs (the board and the directory choice) no longer mark their own session
+  as needing input or route their keys through the navigation feature.
+
 ## 1.0.1 — 2026-10-16
 
 - Keep the package focused on the native Pi session extension. Remove worker

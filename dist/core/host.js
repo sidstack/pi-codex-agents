@@ -52,6 +52,9 @@ export async function startNativeDaemon(cwd, config = Object.freeze(loadConfig()
     let ending = false;
     let exitMenu = false;
     let initializing = true;
+    // The Home session this host created while starting up. It belongs to the frontend
+    // launch that started this host, so only that launch's attachment may claim it.
+    let launchHomeId;
     const server = createServer(handleConnection);
     let saved;
     if (existsSync(paths.registry)) {
@@ -218,6 +221,11 @@ export async function startNativeDaemon(cwd, config = Object.freeze(loadConfig()
         record.view.ui.stop();
         record.view.lease.enabled = false;
     };
+    const suspendIfDetachedCurrent = () => {
+        const current = host.sessions.get(host.activeId);
+        if (current)
+            suspendIfDetached(current);
+    };
     const recover = async (record, ctx) => {
         await host.waitForInactivity(record.id);
         if (record.sessionFile) {
@@ -308,6 +316,7 @@ export async function startNativeDaemon(cwd, config = Object.freeze(loadConfig()
         if (!host.sessions.has("home")) {
             const directory = existsSync(cwd) ? cwd : homedir();
             await host.create(directory, trusted(directory), undefined, { id: "home", name: "Home" });
+            launchHomeId = "home";
         }
         await host.refreshFeatures();
         host.activeId = saved?.activeId && host.sessions.get(saved.activeId)?.view ? saved.activeId : "home";
@@ -363,13 +372,67 @@ export async function startNativeDaemon(cwd, config = Object.freeze(loadConfig()
         }
         attached = socket;
         host.foregroundVisible = true;
+        // Any attachment consumes the startup Home: a second frontend, a manual /agents or a
+        // reconnect after an internal restart all get their own view instead of that session.
+        const claimHomeId = launchHomeId;
+        launchHomeId = undefined;
         hub.dimensions(Number(message.columns) || 100, Number(message.rows) || 30, Boolean(message.kitty));
-        write(socket, { type: "response", id: message.id, success: true, result: snapshot() });
+        // A frontend launches Pi in a directory, so the host gives that launch a session for the
+        // directory: a new one by default, or the directory's last session when resumeLastSession is on.
+        // A failure here never breaks the attachment: the previous foreground session stays usable.
+        const launchCwd = typeof message.launchCwd === "string" && message.launchCwd.startsWith("/") ? message.launchCwd : undefined;
+        let launchError;
+        // Preparing the target does not start its interactive view.
+        let targetId = host.activeId;
+        if (launchCwd) {
+            try {
+                const target = await host.launchSessionForCwd(launchCwd, trusted, claimHomeId);
+                targetId = target.id;
+                launchError = target.launchError;
+            }
+            catch (error) {
+                launchError = `Could not start a session for ${launchCwd}: ${error instanceof Error ? error.message : String(error)}`;
+                console.error(launchError);
+            }
+            // The frontend may have gone away while the target was prepared. Never hand a
+            // terminal lease to a socket that no longer owns the attachment.
+            if (attached !== socket || ending) {
+                suspendIfDetachedCurrent();
+                return;
+            }
+        }
+        write(socket, { type: "response", id: message.id, success: true, result: { ...snapshot(), launchError } });
+        // Activation is after the ACK. Native startup can wait for a human answer, and the
+        // frontend attach timeout must not cut that answer off while the terminal is lent here.
+        if (targetId !== host.activeId) {
+            try {
+                await host.activate(targetId);
+            }
+            catch (error) {
+                // NativeFleet.activate restores the previous foreground view before rethrowing.
+                launchError = `Could not show the session for ${launchCwd}: ${error instanceof Error ? error.message : String(error)}`;
+                console.error(launchError);
+            }
+            if (attached !== socket || ending) {
+                suspendIfDetachedCurrent();
+                return;
+            }
+        }
         const row = host.sessions.get(host.activeId);
+        if (!row?.view) {
+            console.error(`Native view is unavailable for ${host.activeId}`);
+            return;
+        }
         row.unread = false;
         row.view.lease.enabled = true;
         await row.view.start();
+        if (attached !== socket || ending) {
+            suspendIfDetached(row);
+            return;
+        }
         row.view.lease.restore();
+        if (launchError)
+            row.context?.ui.notify(launchError, "error");
         row.view.ui.requestRender(true);
         persist();
     }

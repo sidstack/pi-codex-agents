@@ -1,6 +1,6 @@
 const METHODS = new Set(["write", "moveBy", "hideCursor", "showCursor", "clearLine", "clearFromCursor", "clearScreen", "setTitle", "setProgress", "setProgramStatus"]);
 /** Temporarily lends the physical terminal to the persistent host. */
-export async function attachTerminal(connection, terminal, takeover = false) {
+export async function attachTerminal(connection, terminal, options = {}) {
     let started = false;
     let reason = "Returned to Pi. Managed sessions keep running.";
     let quitFrontend = false;
@@ -36,22 +36,31 @@ export async function attachTerminal(connection, terminal, takeover = false) {
     else
         buffered.push(message); };
     try {
-        await connection.request("attach", { columns: terminal.columns, rows: terminal.rows, kitty: terminal.kittyProtocolActive, takeover });
-        if (connection.socket.destroyed)
-            throw new Error("Session host disconnected during attachment");
+        // The physical terminal is started before the request is answered: the host renders
+        // the attached view as soon as it accepts, and a native startup dialog there needs
+        // this terminal's input. The finally below hands the terminal back if the host refuses.
         terminal.start((data) => connection.send({ type: "input", data, kitty: terminal.kittyProtocolActive }), () => connection.send({ type: "resize", columns: terminal.columns, rows: terminal.rows, kitty: terminal.kittyProtocolActive }));
         started = true;
         for (const message of buffered)
             display(message);
         buffered.length = 0;
-        await connection.request("open");
+        const attachment = await connection.request("attach", {
+            columns: terminal.columns, rows: terminal.rows, kitty: terminal.kittyProtocolActive,
+            takeover: options.takeover === true,
+            ...(options.launchCwd ? { launchCwd: options.launchCwd } : {}),
+        });
+        if (connection.socket.destroyed)
+            throw new Error("Session host disconnected during attachment");
+        // Attaching shows a session; the board is an explicit follow-up request.
+        if (options.openBoard !== false)
+            await connection.request("open");
         await closed;
         if (!verdict) {
             throw new Error(`The agent host closed the terminal connection without detaching or stopping${transportError ? ` (${transportError.message})` : ""}. `
                 + "The terminal is back in Pi, but the host may still be running sessions. Use /agents status to check it, "
                 + "or reopen /agents to reconnect and restore saved histories.", transportError ? { cause: transportError } : undefined);
         }
-        return { reason, quitFrontend, restartHost };
+        return { reason, ...(typeof attachment?.launchError === "string" ? { launchError: attachment.launchError } : {}), quitFrontend, restartHost };
     }
     finally {
         connection.onEvent = () => { };
