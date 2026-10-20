@@ -88,7 +88,7 @@ describe("release automation", () => {
       expect(entry.prerelease + entry.channel).not.toMatch(/\[\^a-zA-Z0-9\]/);
     }
     // Branch names outside the supported shape are excluded from the release configuration by
-    // the branch patterns instead of being sanitized into colliding identifiers, so they can
+    // the branch patterns instead of being rewritten into colliding identifiers, so they can
     // never abort the release run of a valid branch (test/release-engine.test.ts proves the
     // engine ignores them and still releases main).
     expect(prereleaseBranches.map((entry) => interpolate(entry.prerelease, "feat/two"))).not.toEqual(prereleaseBranches.map((entry) => interpolate(entry.prerelease, "fix/two")));
