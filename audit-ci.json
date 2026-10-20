@@ -1,0 +1,15 @@
+{
+  "$schema": "https://github.com/IBM/audit-ci/raw/main/docs/schema.json",
+  "moderate": true,
+  "package-manager": "npm",
+  "report-type": "important",
+  "allowlist": [
+    {
+      "GHSA-vfj7-8cjw-p6xm": {
+        "active": true,
+        "expiry": "2026-11-20",
+        "notes": "braces <=3.0.3 stack-exhaustion denial of service on deeply nested brace patterns (https://github.com/advisories/GHSA-vfj7-8cjw-p6xm). No fixed version is published, so no dependency range resolves around it: the only path in this repository is the dev-only release toolchain semantic-release -> @semantic-release/commit-analyzer -> micromatch -> braces. The advisory is a denial of service on brace expansion of attacker-supplied patterns; this project never expands untrusted glob input and devDependencies are not part of the published npm archive. Review before 2026-11-20: if braces ships a fix, or micromatch/semantic-release stops depending on it, delete this record; if the exception is still needed, re-justify it and move the date. Any other advisory fails the gate."
+      }
+    }
+  ]
+}

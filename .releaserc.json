@@ -1,0 +1,48 @@
+{
+  "tagFormat": "v${version}",
+  "branches": [
+    "main",
+    {
+      "name": "feat/+([a-z0-9-])",
+      "prerelease": "${name.replaceAll('/', '-')}-beta",
+      "channel": "beta-${name.replaceAll('/', '-')}"
+    },
+    {
+      "name": "fix/+([a-z0-9-])",
+      "prerelease": "${name.replaceAll('/', '-')}-beta",
+      "channel": "beta-${name.replaceAll('/', '-')}"
+    },
+    {
+      "name": "chore/+([a-z0-9-])",
+      "prerelease": "${name.replaceAll('/', '-')}-beta",
+      "channel": "beta-${name.replaceAll('/', '-')}"
+    }
+  ],
+  "plugins": [
+    ["@semantic-release/commit-analyzer", { "preset": "conventionalcommits" }],
+    ["@semantic-release/release-notes-generator", { "preset": "conventionalcommits" }],
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md",
+        "changelogTitle": "# Changelog"
+      }
+    ],
+    ["@semantic-release/npm", { "npmPublish": true }],
+    ["@semantic-release/exec", { "prepareCmd": "node scripts/build.mjs" }],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["package.json", "package-lock.json", "CHANGELOG.md", "dist"]
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "successComment": false,
+        "failComment": false,
+        "assignIssues": false
+      }
+    ]
+  ]
+}

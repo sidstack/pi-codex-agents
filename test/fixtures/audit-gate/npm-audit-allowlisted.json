@@ -1,0 +1,242 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "@semantic-release/changelog": {
+      "name": "@semantic-release/changelog",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "semantic-release"
+      ],
+      "effects": [],
+      "range": ">=6.0.0",
+      "nodes": [
+        "node_modules/@semantic-release/changelog"
+      ],
+      "fixAvailable": {
+        "name": "@semantic-release/changelog",
+        "version": "5.0.1",
+        "isSemVerMajor": true
+      }
+    },
+    "@semantic-release/commit-analyzer": {
+      "name": "@semantic-release/commit-analyzer",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "micromatch",
+        "semantic-release"
+      ],
+      "effects": [
+        "semantic-release"
+      ],
+      "range": ">=7.0.0-beta.1",
+      "nodes": [
+        "node_modules/@semantic-release/commit-analyzer"
+      ],
+      "fixAvailable": {
+        "name": "@semantic-release/changelog",
+        "version": "5.0.1",
+        "isSemVerMajor": true
+      }
+    },
+    "@semantic-release/exec": {
+      "name": "@semantic-release/exec",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "semantic-release"
+      ],
+      "effects": [],
+      "range": ">=3.4.0-beta.1",
+      "nodes": [
+        "node_modules/@semantic-release/exec"
+      ],
+      "fixAvailable": {
+        "name": "@semantic-release/exec",
+        "version": "3.3.8",
+        "isSemVerMajor": true
+      }
+    },
+    "@semantic-release/git": {
+      "name": "@semantic-release/git",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "micromatch",
+        "semantic-release"
+      ],
+      "effects": [],
+      "range": "*",
+      "nodes": [
+        "node_modules/@semantic-release/git"
+      ],
+      "fixAvailable": false
+    },
+    "@semantic-release/github": {
+      "name": "@semantic-release/github",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "semantic-release"
+      ],
+      "effects": [
+        "semantic-release"
+      ],
+      "range": "5.3.0-beta.1 - 5.3.0-beta.8 || 5.4.0-beta.1 || 5.5.0-beta.1 || >=5.6.0-beta.1",
+      "nodes": [
+        "node_modules/@semantic-release/github"
+      ],
+      "fixAvailable": {
+        "name": "@semantic-release/changelog",
+        "version": "5.0.1",
+        "isSemVerMajor": true
+      }
+    },
+    "@semantic-release/npm": {
+      "name": "@semantic-release/npm",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "semantic-release"
+      ],
+      "effects": [
+        "semantic-release"
+      ],
+      "range": ">=6.0.0-beta.1",
+      "nodes": [
+        "node_modules/@semantic-release/npm"
+      ],
+      "fixAvailable": {
+        "name": "@semantic-release/changelog",
+        "version": "5.0.1",
+        "isSemVerMajor": true
+      }
+    },
+    "@semantic-release/release-notes-generator": {
+      "name": "@semantic-release/release-notes-generator",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "semantic-release"
+      ],
+      "effects": [
+        "semantic-release"
+      ],
+      "range": ">=10.0.0-beta.1",
+      "nodes": [
+        "node_modules/@semantic-release/release-notes-generator"
+      ],
+      "fixAvailable": {
+        "name": "@semantic-release/changelog",
+        "version": "5.0.1",
+        "isSemVerMajor": true
+      }
+    },
+    "braces": {
+      "name": "braces",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1240992,
+          "name": "braces",
+          "dependency": "braces",
+          "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+          "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+          "severity": "high",
+          "cwe": [
+            "CWE-674"
+          ],
+          "cvss": {
+            "score": 7.5,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "range": "<=3.0.3"
+        }
+      ],
+      "effects": [
+        "micromatch"
+      ],
+      "range": "*",
+      "nodes": [
+        "node_modules/braces"
+      ],
+      "fixAvailable": {
+        "name": "@semantic-release/changelog",
+        "version": "5.0.1",
+        "isSemVerMajor": true
+      }
+    },
+    "micromatch": {
+      "name": "micromatch",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "braces"
+      ],
+      "effects": [
+        "@semantic-release/commit-analyzer",
+        "@semantic-release/git",
+        "semantic-release"
+      ],
+      "range": ">=0.2.0",
+      "nodes": [
+        "node_modules/micromatch"
+      ],
+      "fixAvailable": {
+        "name": "@semantic-release/changelog",
+        "version": "5.0.1",
+        "isSemVerMajor": true
+      }
+    },
+    "semantic-release": {
+      "name": "semantic-release",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "@semantic-release/commit-analyzer",
+        "@semantic-release/github",
+        "@semantic-release/npm",
+        "@semantic-release/release-notes-generator",
+        "micromatch"
+      ],
+      "effects": [
+        "@semantic-release/changelog",
+        "@semantic-release/commit-analyzer",
+        "@semantic-release/exec",
+        "@semantic-release/git",
+        "@semantic-release/github",
+        "@semantic-release/npm",
+        "@semantic-release/release-notes-generator"
+      ],
+      "range": ">=16.0.0-beta.1",
+      "nodes": [
+        "node_modules/semantic-release"
+      ],
+      "fixAvailable": {
+        "name": "@semantic-release/changelog",
+        "version": "5.0.1",
+        "isSemVerMajor": true
+      }
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 10,
+      "critical": 0,
+      "total": 10
+    },
+    "dependencies": {
+      "prod": 1,
+      "dev": 636,
+      "optional": 31,
+      "peer": 0,
+      "peerOptional": 0,
+      "total": 636
+    }
+  }
+}

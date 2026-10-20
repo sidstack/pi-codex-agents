@@ -19,4 +19,7 @@ jobs:
         run: |
           git diff --exit-code -- dist
           test -z "$(git ls-files --others --exclude-standard dist)"
-      - run: npm audit
+      # Full dependency audit (production and dev tree) with one documented exception in
+      # audit-ci.json: the dev-only release toolchain depends on braces, whose high advisory
+      # GHSA-vfj7-8cjw-p6xm has no published fix. Any other finding at moderate or above fails.
+      - run: npm run audit:ci

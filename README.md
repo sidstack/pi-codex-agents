@@ -15,12 +15,16 @@ Requires Linux, Node 22.19+, and Pi **>=1.3.0 <1.4.0**; 1.3.0 is the tested base
 pi install npm:pi-codex-agents@latest
 ```
 
-To test the current prerelease, install the `beta` dist-tag after it is published, or
-install the tag straight from GitHub:
+To test an unreleased branch build, install the dist-tag of that branch, or install a
+tag straight from GitHub. Every supported `feat/<name>`, `fix/<name>` or
+`chore/<name>` branch publishes its own prereleases under
+`beta-<type>-<name>`; the name must be a single lowercase kebab-case segment, other
+branch names never release. Prereleases published before the automation used the
+shared `beta` tag.
 
 ```sh
-pi install npm:pi-codex-agents@beta
-pi install git:github.com/sidstack/pi-codex-agents@v1.1.0-beta.3
+pi install npm:pi-codex-agents@beta-feat-launch-picker
+pi install git:github.com/sidstack/pi-codex-agents@v1.2.0-feat-launch-picker-beta.1
 ```
 
 Restart Pi after installation, or run `/reload` in an open Pi session.
