@@ -18,7 +18,7 @@ version and the release notes from commit headers:
   commit header itself is ignored and the merged commits are analysed.
 
 `main` publishes stable versions to the npm `latest` tag and creates a matching
-`vVERSION` tag plus a GitHub release. `feat/**`, `fix/**` and `chore/**` publish
+`vVERSION` tag plus a GitHub release. Supported release branches publish
 pre-releases as `1.2.0-feat-launch-picker-beta.1`, incrementing the last number on
 each releasable push, published to a per-branch npm dist-tag
 (`beta-feat-launch-picker`). A branch build never touches `latest`.
@@ -29,22 +29,46 @@ Install a branch build with:
 pi install npm:pi-codex-agents@beta-feat-launch-picker
 ```
 
-Branch names must stay `type/name` with single-level kebab-case names using letters,
-digits and hyphens only. The name is embedded in the pre-release identifier, so
-`feat/ab.c` and `feat/ab-c` would collide. semantic-release detects that before
-publishing anything and fails the job with `EPRERELEASEBRANCHES` rather than
-inventing a version; rename the branch to fix it.
+## Supported branch names and channels
+
+Only these branches release, and the pattern is enforced in `.releaserc.json` with
+micromatch extglobs (`feat/+([a-z0-9-])`, `fix/+([a-z0-9-])`,
+`chore/+([a-z0-9-])`):
+
+| Branch                | Version                          | npm dist-tag             |
+| --------------------- | -------------------------------- | ------------------------ |
+| `main`                | `1.2.0`                          | `latest`                 |
+| `feat/launch-picker`  | `1.2.0-feat-launch-picker-beta.1`| `beta-feat-launch-picker`|
+| `fix/crash-on-open`   | `1.1.1-fix-crash-on-open-beta.1` | `beta-fix-crash-on-open` |
+| `chore/modernise-ci`  | `1.1.1-chore-modernise-ci-beta.1`| `beta-chore-modernise-ci`|
+
+The name part must be a single path segment made only of lowercase letters, digits
+and hyphens, that is `+([a-z0-9-])`. Keep it kebab-case: start and end with a letter
+or digit and avoid doubled hyphens, even though those forms still match.
+
+Anything else is excluded from the release configuration instead of being sanitized
+into it: dotted names (`feat/ab.c`), nested names (`feat/a/b`), uppercase
+(`feat/Launch`), underscores (`feat/a_b`) and empty names never match. Their
+publish run logs that the branch cannot release and exits 0, and they cannot block
+`main` or any other branch. That matters because the branch name is embedded in the
+pre-release identifier: `feat/ab.c` and `feat/ab-c` would both map to
+`feat-ab-c-beta`, and semantic-release then aborts every release run on the
+repository with `EPRERELEASEBRANCHES`. Restricting the pattern keeps the name to
+identifier mapping one-to-one, so a malformed branch is ignored rather than turning
+into a failed release pipeline. The publish workflow trigger stays broad
+(`feat/**`, `fix/**`, `chore/**`) so those pushes still get the normal checks; only
+the release step no-ops.
 
 ## How a release run works
 
 `.github/workflows/publish.yml` runs on pushes to `main` and to those three branch
 families, and can still be dispatched manually. The `check` job runs
 `npm run release:check`, verifies that committed `dist/` matches a fresh build, and
-audits the shipped dependency surface. Only then the `release` job, bound to the
-protected `npm` GitHub environment, runs `semantic-release`, which writes the new
-version to `package.json` and `package-lock.json`, prepends generated notes to
-`CHANGELOG.md`, rebuilds `dist/`, commits and tags all of it, publishes to npm with
-trusted publishing and provenance, and opens the GitHub release.
+audits the full dependency tree with `npm run audit:ci`. Only then the `release`
+job, bound to the protected `npm` GitHub environment, runs `semantic-release`, which
+writes the new version to `package.json` and `package-lock.json`, prepends generated
+notes to `CHANGELOG.md`, rebuilds `dist/`, commits and tags all of it, publishes to
+npm with trusted publishing and provenance, and opens the GitHub release.
 
 `prepublishOnly` asserts release identity: a clean tree, a repository URL that is
 set, `dist/build.json` at the published version, and HEAD tagged as `vVERSION`.
@@ -52,6 +76,9 @@ semantic-release creates that tag before it publishes, so the same assertion hol
 for automated and interactive publishes. The automated run sets
 `PI_AUTOMATED_PUBLISH=true` because the `check` job already ran the full
 `release:check` gate on the same commit; an interactive publish reruns that gate.
+The `npm publish` is explicit about provenance through
+`publishConfig.provenance: true`, alongside `access: public`, and relies on npm
+trusted publishing for credentials.
 
 The workflow keeps its exact filename and the `npm` environment because npm's
 trusted publisher configuration is bound to the repository, the workflow filename,
@@ -59,10 +86,27 @@ and the environment name. The release commit and tag are pushed with the standar
 `GITHUB_TOKEN`, and GitHub does not start workflow runs for events caused by that
 token, so releases cannot trigger themselves.
 
-The dependency audit gate uses `npm audit --omit=dev`. The release toolchain depends
-on `micromatch`, which depends on `braces`; `braces` has an open high-severity
-advisory (GHSA-vfj7-8cjw-p6xm, deeply nested brace patterns overflow the stack) with
-no published fix, and devDependencies are not part of the published archive.
+## Dependency audit gate
+
+`npm run audit:ci` runs `audit-ci` (pinned devDependency) against the full
+dependency tree, production and development, using `audit-ci.json`. It fails on any
+moderate, high or critical advisory that is not explicitly allowlisted, so a new
+advisory in any dependency, including dev-only ones, breaks the gate. Both the CI
+workflow and the publish workflow run it in their `check` job after `npm ci`.
+
+The allowlist holds exactly one record, `GHSA-vfj7-8cjw-p6xm` (`braces` <=3.0.3,
+stack exhaustion when expanding deeply nested brace patterns). No fixed version of
+`braces` has been published, so no dependency range resolves around it. The only
+path in this repository is the dev-only release toolchain
+`semantic-release` -> `@semantic-release/commit-analyzer` -> `micromatch` ->
+`braces`; the project never expands untrusted glob patterns and devDependencies are
+not part of the published npm archive. The record carries that justification and an
+`expiry` of `2026-11-20`: audit-ci treats an expired record as inactive, so the gate
+starts failing on that advisory after the review date. Before then, check whether
+`braces` published a fix or whether `micromatch`/`semantic-release` dropped the
+dependency, upgrade, and delete the record; if the exception is still needed,
+re-justify it and move the date. Never widen the allowlist to a whole module, a
+package family, or a severity level.
 
 ## First automated release
 

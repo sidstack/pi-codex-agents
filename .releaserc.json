@@ -3,17 +3,17 @@
   "branches": [
     "main",
     {
-      "name": "feat/**",
+      "name": "feat/+([a-z0-9-])",
       "prerelease": "${name.replace(/[^a-zA-Z0-9]+/g, '-')}-beta",
       "channel": "beta-${name.replace(/[^a-zA-Z0-9]+/g, '-')}"
     },
     {
-      "name": "fix/**",
+      "name": "fix/+([a-z0-9-])",
       "prerelease": "${name.replace(/[^a-zA-Z0-9]+/g, '-')}-beta",
       "channel": "beta-${name.replace(/[^a-zA-Z0-9]+/g, '-')}"
     },
     {
-      "name": "chore/**",
+      "name": "chore/+([a-z0-9-])",
       "prerelease": "${name.replace(/[^a-zA-Z0-9]+/g, '-')}-beta",
       "channel": "beta-${name.replace(/[^a-zA-Z0-9]+/g, '-')}"
     }

@@ -16,9 +16,11 @@ pi install npm:pi-codex-agents@latest
 ```
 
 To test an unreleased branch build, install the dist-tag of that branch, or install a
-tag straight from GitHub. Every `feat/**`, `fix/**`, or `chore/**` branch publishes
-its own prereleases under `beta-BRANCHNAME`; prereleases published before the
-automation used the shared `beta` tag.
+tag straight from GitHub. Every supported `feat/<name>`, `fix/<name>` or
+`chore/<name>` branch publishes its own prereleases under
+`beta-<type>-<name>`; the name must be a single lowercase kebab-case segment, other
+branch names never release. Prereleases published before the automation used the
+shared `beta` tag.
 
 ```sh
 pi install npm:pi-codex-agents@beta-feat-launch-picker

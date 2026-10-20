@@ -3,6 +3,9 @@ on:
   push:
     branches: ['main', 'feat/**', 'fix/**', 'chore/**']
   workflow_dispatch:
+# The workflow filter stays broad on purpose: a branch outside the supported `type/name`
+# naming (see docs/RELEASING.md) still starts a run, but semantic-release finds no matching
+# release branch and exits 0 without publishing anything.
 # semantic-release creates the release commit and the vVERSION tag with GITHUB_TOKEN.
 # GitHub does not start workflow runs for events caused by GITHUB_TOKEN, so tag pushes and
 # release commits cannot re-trigger this workflow; there is no tag trigger at all.
@@ -31,10 +34,10 @@ jobs:
         run: |
           git diff --exit-code -- dist
           test -z "$(git ls-files --others --exclude-standard dist)"
-      # The published archive never ships devDependencies, so the gate audits the shipped
-      # dependency surface. The release toolchain pulls in micromatch -> braces, which has an
-      # open high advisory (GHSA-vfj7-8cjw-p6xm) with no published fix.
-      - run: npm audit --omit=dev
+      # Full dependency audit (production and dev tree) with one documented exception in
+      # audit-ci.json: the dev-only release toolchain depends on braces, whose high advisory
+      # GHSA-vfj7-8cjw-p6xm has no published fix. Any other finding at moderate or above fails.
+      - run: npm run audit:ci
   release:
     name: Release and publish
     needs: check
