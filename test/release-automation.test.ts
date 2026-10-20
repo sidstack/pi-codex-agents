@@ -145,7 +145,18 @@ describe("release automation", () => {
     expect(workflow).toContain("environment: npm");
     expect(workflow).toContain("contents: write");
     expect(workflow).toContain("id-token: write");
-    expect(workflow).toContain("GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}");
+    // The credential variable NAME is part of the release contract. semantic-release 25 builds
+    // its git push URL from GITHUB_TOKEN with the `x-access-token:` username prefix only when
+    // GITHUB_ACTION is set (semantic-release/lib/get-git-auth-url.js); GH_TOKEN is inserted
+    // verbatim as the username, so GitHub rejects the push with EGITNOPERMISSION. Keeping only
+    // GITHUB_TOKEN removes that ambiguity.
+    expect(workflow).toContain("GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}");
+    expect(workflow).not.toMatch(/(^|\s)GH_TOKEN:/m);
+    // @semantic-release/github resolves `env.GH_TOKEN || env.GITHUB_TOKEN`, so the GitHub
+    // release step still authenticates with the single variable, and the semantic-release step
+    // must not gain a second credential name that would make the choice ambiguous.
+    const releaseStep = workflow.slice(workflow.indexOf("run: npx --no-install semantic-release"));
+    expect(releaseStep.match(/^ {10}[A-Z_]+:/gm)).toEqual(["          GITHUB_TOKEN:", "          PI_AUTOMATED_PUBLISH:"]);
   });
 
   it("asserts release identity on every publish path", () => {
