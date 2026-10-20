@@ -34,8 +34,8 @@ beforeAll(() => {
   fixture.branchFromMain("feat/breaking-two", "feat!: breaking demo");
   runs.set("breakingTwo", fixture.runRelease("feat/breaking-two", "feat/breaking-two", false));
 
-  // Branch names the release configuration must not match. `feat/ab.c` would sanitize to the
-  // same pre-release identifier as `feat/ab-c`, which used to abort every release run.
+  // Branch names the release configuration must not match: their characters cannot be
+  // represented in a pre-release identifier, so the patterns exclude them outright.
   fixture.branchFromMain("feat/bad.dots", "feat: dotted feature");
   runs.set("badDots", fixture.runRelease("feat/bad.dots", "feat/bad.dots"));
   fixture.branchFromMain("feat/nested/deep", "feat: nested feature");
@@ -46,6 +46,14 @@ beforeAll(() => {
   runs.set("abHyphen", fixture.runRelease("feat/ab-c", "feat/ab-c", false));
   fixture.branchFromMain("feat/ab.c", "feat: colliding dotted feature");
   runs.set("abDotted", fixture.runRelease("feat/ab.c", "feat/ab.c"));
+
+  // Hyphen runs are part of the branch name, not separators. The identifier transform converts
+  // only the `/` between the type and the name, so these two branches keep distinct
+  // pre-release identifiers and channels instead of collapsing into one (EPRERELEASEBRANCHES).
+  fixture.branchFromMain("feat/a-b", "feat: single hyphen feature");
+  runs.set("singleHyphen", fixture.runRelease("feat/a-b", "feat/a-b", false));
+  fixture.branchFromMain("feat/a--b", "feat: double hyphen feature");
+  runs.set("doubleHyphen", fixture.runRelease("feat/a--b", "feat/a--b", false));
 
   fixture.checkout("main");
   fixture.commit("fix: main fix");
@@ -91,9 +99,23 @@ describe("semantic-release branch configuration", () => {
     });
   }
 
-  it("keeps a valid sibling of a colliding branch releasable", () => {
+  it("keeps a hyphenated branch releasable next to dotted siblings", () => {
     expect(run("abHyphen").status).toBe(0);
     expect(released(run("abHyphen"))).toEqual({ version: "1.1.0-feat-ab-c-beta.1", channel: "beta-feat-ab-c" });
+  });
+
+  it("releases hyphen-run branch names side by side with distinct identifiers", () => {
+    for (const [label, branch] of [["singleHyphen", "feat/a-b"], ["doubleHyphen", "feat/a--b"]] as const) {
+      const release = released(run(label));
+      const identifier = branch.replaceAll("/", "-");
+      const version = `1.1.0-${identifier}-beta.1`;
+      expect(run(label).status).toBe(0);
+      expect(release).toEqual({ version, channel: `beta-${identifier}` });
+      expect(version).toMatch(/^1\.1\.0-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*$/);
+      expect(`beta-${identifier}`).toMatch(/^[0-9A-Za-z][0-9A-Za-z.-]*$/);
+    }
+    expect(released(run("singleHyphen"))?.version).not.toBe(released(run("doubleHyphen"))?.version);
+    expect(released(run("singleHyphen"))?.channel).not.toBe(released(run("doubleHyphen"))?.channel);
   });
 
   it("does not let malformed branch names block main", () => {
@@ -110,6 +132,8 @@ describe("semantic-release branch configuration", () => {
     expect(tags).toContain("v1.1.0-feat-demo-one-beta.1");
     expect(tags).toContain("v1.1.0-feat-demo-one-beta.2");
     expect(tags).toContain("v1.1.0-feat-ab-c-beta.1");
+    expect(tags).toContain("v1.1.0-feat-a-b-beta.1");
+    expect(tags).toContain("v1.1.0-feat-a--b-beta.1");
     expect(tags.filter((tag) => /dotted|bad|nested|UPPER|ab\.c/i.test(tag))).toEqual([]);
   });
 });

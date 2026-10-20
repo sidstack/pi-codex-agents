@@ -5,11 +5,11 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file: string) => readFileSync(join(root, file), "utf8");
-const pkg = JSON.parse(read("package.json")) as { version: string; scripts: Record<string, string>; publishConfig: { access?: string; tag?: string; provenance?: boolean }; devDependencies: Record<string, string> };
+const pkg = JSON.parse(read("package.json")) as { version: string; scripts: Record<string, string>; dependencies?: Record<string, string>; publishConfig: { access?: string; tag?: string; provenance?: boolean }; devDependencies: Record<string, string> };
 const release = JSON.parse(read(".releaserc.json")) as { tagFormat: string; branches: unknown[]; plugins: Array<[string, Record<string, unknown>] | string> };
 const workflow = read(".github/workflows/publish.yml");
 const ciWorkflow = read(".github/workflows/ci.yml");
-const auditConfig = JSON.parse(read("audit-ci.json")) as { moderate: boolean; allowlist: Array<Record<string, { active?: boolean; expiry?: string; notes?: string }>> };
+const auditConfig = JSON.parse(read("audit-ci.json")) as { moderate: boolean; "package-manager"?: string; "skip-dev"?: boolean; "extra-args"?: string[]; allowlist: Array<Record<string, { active?: boolean; expiry?: string; notes?: string }>> };
 const prereleaseBranches = release.branches.slice(1) as Array<{ name: string; prerelease: string; channel: string }>;
 // semantic-release interpolates branch config with lodash templates over `name`.
 const interpolate = (value: string, name: string) => new Function("name", `return \`${value}\``)(name) as string;
@@ -51,6 +51,11 @@ describe("release automation", () => {
     for (const entry of prereleaseBranches) expect(entry.name).toMatch(supported);
     expect(read("docs/RELEASING.md")).toContain("+([a-z0-9-])");
     expect(read("docs/RELEASING.md")).toContain("EPRERELEASEBRANCHES");
+    // The docs describe the separator-only transform and keep publishing CI-only.
+    expect(read("docs/RELEASING.md")).toContain("feat/a--b");
+    expect(read("docs/RELEASING.md")).toContain("replacing only the `/` separator");
+    expect(read("docs/RELEASING.md")).toContain("workstation");
+    expect(read("docs/RELEASING.md")).not.toMatch(/^npm publish/m);
   });
 
   it("publishes branch betas and branch channels derived from the branch name", () => {
@@ -62,6 +67,25 @@ describe("release automation", () => {
     for (const channel of prereleaseBranches.map((entry) => interpolate(entry.channel, branch))) {
       expect(channel).toBe("beta-feat-launch-picker");
       expect(channel).toMatch(/^[0-9A-Za-z][0-9A-Za-z.-]*$/);
+    }
+    // Only the `/` separator becomes a hyphen: hyphen runs belong to the branch name, so
+    // `feat/a-b` and `feat/a--b` keep distinct pre-release identifiers and channels instead of
+    // collapsing into one and aborting every run (test/release-engine.test.ts releases both).
+    const hyphenRuns = ["feat/a-b", "feat/a--b", "feat/a---b"];
+    const identifiers = hyphenRuns.map((name) => prereleaseBranches.map((entry) => interpolate(entry.prerelease, name)));
+    expect(identifiers).toEqual([["feat-a-b-beta", "feat-a-b-beta", "feat-a-b-beta"], ["feat-a--b-beta", "feat-a--b-beta", "feat-a--b-beta"], ["feat-a---b-beta", "feat-a---b-beta", "feat-a---b-beta"]]);
+    for (const entry of identifiers) {
+      for (const preid of entry) {
+        expect(`1.1.0-${preid}.1`).toMatch(/^1\.1\.0-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*$/);
+      }
+    }
+    expect(new Set(identifiers.map((entry) => entry[0])).size).toBe(hyphenRuns.length);
+    // No character class may collapse distinct matched names, because the extglob already
+    // restricts names to `[a-z0-9-]` after a single `/`.
+    for (const entry of prereleaseBranches) {
+      expect(entry.prerelease).toContain("replaceAll('/', '-')");
+      expect(entry.channel).toContain("replaceAll('/', '-')");
+      expect(entry.prerelease + entry.channel).not.toMatch(/\[\^a-zA-Z0-9\]/);
     }
     // Branch names outside the supported shape are excluded from the release configuration by
     // the branch patterns instead of being sanitized into colliding identifiers, so they can
@@ -79,6 +103,15 @@ describe("release automation", () => {
   it("audits the full dependency tree with one expiring advisory exception", () => {
     expect(pkg.scripts["audit:ci"]).toBe("audit-ci --config ./audit-ci.json");
     expect(auditConfig.moderate).toBe(true);
+    // `skip-dev` (audit-ci) or `--production` would hide the release toolchain, which is where
+    // every pinned dependency of this package lives.
+    expect(auditConfig["skip-dev"]).not.toBe(true);
+    expect(auditConfig["extra-args"]).toBeUndefined();
+    expect(pkg.scripts["audit:ci"]).not.toMatch(/--skip-dev|--production|--no-dev/);
+    // Every pinned release toolchain entry is a devDependency, and the package itself has no
+    // production dependencies, so a production-only audit could never fail this gate.
+    for (const name of ["semantic-release", "@semantic-release/npm", "audit-ci"]) expect(pkg.devDependencies[name]).toBeDefined();
+    expect(pkg.dependencies).toBeUndefined();
     expect(auditConfig.allowlist).toHaveLength(1);
     const [record] = auditConfig.allowlist;
     const exception = record?.["GHSA-vfj7-8cjw-p6xm"];
@@ -91,6 +124,7 @@ describe("release automation", () => {
     for (const file of [ciWorkflow, workflow]) {
       expect(file).toContain("npm run audit:ci");
       expect(file).not.toContain("npm audit");
+      expect(file).not.toMatch(/--skip-dev|--production|--no-dev/);
     }
   });
 

@@ -4,18 +4,18 @@
     "main",
     {
       "name": "feat/+([a-z0-9-])",
-      "prerelease": "${name.replace(/[^a-zA-Z0-9]+/g, '-')}-beta",
-      "channel": "beta-${name.replace(/[^a-zA-Z0-9]+/g, '-')}"
+      "prerelease": "${name.replaceAll('/', '-')}-beta",
+      "channel": "beta-${name.replaceAll('/', '-')}"
     },
     {
       "name": "fix/+([a-z0-9-])",
-      "prerelease": "${name.replace(/[^a-zA-Z0-9]+/g, '-')}-beta",
-      "channel": "beta-${name.replace(/[^a-zA-Z0-9]+/g, '-')}"
+      "prerelease": "${name.replaceAll('/', '-')}-beta",
+      "channel": "beta-${name.replaceAll('/', '-')}"
     },
     {
       "name": "chore/+([a-z0-9-])",
-      "prerelease": "${name.replace(/[^a-zA-Z0-9]+/g, '-')}-beta",
-      "channel": "beta-${name.replace(/[^a-zA-Z0-9]+/g, '-')}"
+      "prerelease": "${name.replaceAll('/', '-')}-beta",
+      "channel": "beta-${name.replaceAll('/', '-')}"
     }
   ],
   "plugins": [

@@ -1,8 +1,10 @@
 # Releasing
 
 The project is published as `pi-codex-agents` on npm and `sidstack/pi-codex-agents`
-on GitHub. Releases are automated with semantic-release. Do not bump `package.json`
-by hand, create `v*` tags, or run `npm publish` for a normal release.
+on GitHub. Releases are automated with semantic-release and publish only from the
+publish workflow. Do not bump `package.json` by hand, create `v*` tags, or publish
+from a workstation: `publishConfig.provenance: true` requires the CI OIDC context
+and npm trusted publishing, so an interactive `npm publish` cannot produce a release.
 
 ## What triggers a release
 
@@ -43,16 +45,22 @@ micromatch extglobs (`feat/+([a-z0-9-])`, `fix/+([a-z0-9-])`,
 | `chore/modernise-ci`  | `1.1.1-chore-modernise-ci-beta.1`| `beta-chore-modernise-ci`|
 
 The name part must be a single path segment made only of lowercase letters, digits
-and hyphens, that is `+([a-z0-9-])`. Keep it kebab-case: start and end with a letter
-or digit and avoid doubled hyphens, even though those forms still match.
+and hyphens, that is `+([a-z0-9-])`. Hyphen runs are part of the name and survive
+the transform, so `feat/a--b` publishes `1.2.0-feat-a--b-beta.1` on
+`beta-feat-a--b` next to `feat/a-b`, which publishes
+`1.2.0-feat-a-b-beta.1` on `beta-feat-a-b`.
 
-Anything else is excluded from the release configuration instead of being sanitized
+Anything else is excluded from the release configuration instead of being rewritten
 into it: dotted names (`feat/ab.c`), nested names (`feat/a/b`), uppercase
 (`feat/Launch`), underscores (`feat/a_b`) and empty names never match. Their
 publish run logs that the branch cannot release and exits 0, and they cannot block
 `main` or any other branch. That matters because the branch name is embedded in the
-pre-release identifier: `feat/ab.c` and `feat/ab-c` would both map to
-`feat-ab-c-beta`, and semantic-release then aborts every release run on the
+pre-release identifier by replacing only the `/` separator with `-`: the transform
+never collapses characters, so every matched name maps to exactly one identifier and
+one channel, and two branches can only collide if they have the same name. Names
+with characters that a semver pre-release identifier cannot carry (`.` or a second
+`/`) are excluded by the patterns instead; if they were kept, they would map onto an
+existing identifier and semantic-release would abort every release run in the
 repository with `EPRERELEASEBRANCHES`. Restricting the pattern keeps the name to
 identifier mapping one-to-one, so a malformed branch is ignored rather than turning
 into a failed release pipeline. The publish workflow trigger stays broad
@@ -70,15 +78,14 @@ writes the new version to `package.json` and `package-lock.json`, prepends gener
 notes to `CHANGELOG.md`, rebuilds `dist/`, commits and tags all of it, publishes to
 npm with trusted publishing and provenance, and opens the GitHub release.
 
-`prepublishOnly` asserts release identity: a clean tree, a repository URL that is
-set, `dist/build.json` at the published version, and HEAD tagged as `vVERSION`.
-semantic-release creates that tag before it publishes, so the same assertion holds
-for automated and interactive publishes. The automated run sets
-`PI_AUTOMATED_PUBLISH=true` because the `check` job already ran the full
-`release:check` gate on the same commit; an interactive publish reruns that gate.
-The `npm publish` is explicit about provenance through
-`publishConfig.provenance: true`, alongside `access: public`, and relies on npm
-trusted publishing for credentials.
+`prepublishOnly` asserts release identity on the publish path: a clean tree, a
+repository URL that is set, `dist/build.json` at the published version, and HEAD
+tagged as `vVERSION`. semantic-release creates that tag before it publishes. The
+publish workflow sets `PI_AUTOMATED_PUBLISH=true` because its `check` job already
+ran the full `release:check` gate on the same commit. Publishing is not a
+workstation operation: `publishConfig.provenance: true` alongside `access: public`
+makes npm attach provenance through the CI OIDC identity, and credentials come from
+npm trusted publishing bound to this repository, workflow filename and environment.
 
 The workflow keeps its exact filename and the `npm` environment because npm's
 trusted publisher configuration is bound to the repository, the workflow filename,
@@ -115,9 +122,10 @@ retroactively: the last release semantic-release finds is `v1.0.1` and the exist
 `v1.1.0-beta.*` tags are treated as already released. The conventional commit that
 introduces the automation is therefore the first release and produces `1.1.0`.
 
-## Verify a release locally
+## Verify a release without publishing
 
-On a throwaway branch, without publishing anything:
+On a throwaway branch, the same engine decides the version and channel in dry-run
+mode (it never publishes):
 
 ```sh
 npx --no-install semantic-release --dry-run --no-ci

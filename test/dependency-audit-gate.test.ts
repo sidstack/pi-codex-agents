@@ -8,8 +8,9 @@ import { join } from "node:path";
 const root = join(import.meta.dirname, "..");
 const auditCiBin = join(root, "node_modules", "audit-ci", "dist", "bin.js");
 const fixtureDir = join(root, "test", "fixtures", "audit-gate");
-type AuditCiConfig = { moderate: boolean; "package-manager": string; allowlist: Array<Record<string, { active?: boolean; notes?: string; expiry?: string }>> };
+type AuditCiConfig = { moderate: boolean; "package-manager": string; "skip-dev"?: boolean; allowlist: Array<Record<string, { active?: boolean; notes?: string; expiry?: string }>> };
 const committedConfig = JSON.parse(readFileSync(join(root, "audit-ci.json"), "utf8")) as AuditCiConfig;
+const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { scripts: Record<string, string>; dependencies?: Record<string, string>; devDependencies: Record<string, string> };
 
 function committedException(): { active?: boolean; notes?: string; expiry?: string } {
   const [entry] = committedConfig.allowlist;
@@ -31,6 +32,30 @@ function runAuditGate(reportFile: string, configPath = join(root, "audit-ci.json
   });
   rmSync(dir, { recursive: true, force: true });
   return { status: result.status, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
+}
+
+// Names reachable from the declared devDependencies through the installed tree, at name level
+// (hoisted or nested). Used to show the audit fixtures describe development-scope findings.
+function devClosure(): Set<string> {
+  const seen = new Set<string>(Object.keys(pkg.devDependencies));
+  const queue = [...seen];
+  while (queue.length > 0) {
+    const name = queue.shift() as string;
+    const manifest = join(root, "node_modules", ...name.split("/"), "package.json");
+    let dependencies: Record<string, string> | undefined;
+    try {
+      dependencies = (JSON.parse(readFileSync(manifest, "utf8")) as { dependencies?: Record<string, string> }).dependencies;
+    } catch {
+      continue;
+    }
+    for (const child of Object.keys(dependencies ?? {})) {
+      if (!seen.has(child)) {
+        seen.add(child);
+        queue.push(child);
+      }
+    }
+  }
+  return seen;
 }
 
 describe("dependency audit gate", () => {
@@ -55,6 +80,31 @@ describe("dependency audit gate", () => {
     expect(gate.output).toContain("GHSA-vfj7-8cjw-p6xm");
     expect(gate.status).toBe(0);
     expect(gate.output).toContain("Passed npm security audit");
+  });
+
+  it("covers the development tree, where the whole release toolchain lives", () => {
+    // audit-ci defaults to the full tree; any scope narrowing would hide every pinned dependency
+    // of this package, because they are all devDependencies and the package has none for npm.
+    const auditScript = pkg.scripts["audit:ci"] ?? "";
+    expect(auditScript).toBe("audit-ci --config ./audit-ci.json");
+    expect(auditScript.split(" ")).not.toContain("--skip-dev");
+    expect(auditScript).not.toMatch(/--production|--no-dev|--environment[= ]production/);
+    expect(committedConfig["skip-dev"]).not.toBe(true);
+    expect(pkg.dependencies).toBeUndefined();
+
+    const report = JSON.parse(readFileSync(join(fixtureDir, "npm-audit-unlisted.json"), "utf8")) as { vulnerabilities: Record<string, { nodes: string[] }> };
+    const vulnerable = Object.keys(report.vulnerabilities);
+    const closure = devClosure();
+    expect(vulnerable).toContain("semantic-release");
+    for (const name of vulnerable) {
+      expect(closure.has(name)).toBe(true);
+      expect(pkg.dependencies?.[name]).toBeUndefined();
+    }
+
+    // The gate fails on findings that only exist in the development tree, so dev scope is not
+    // skipped by the committed configuration.
+    const gate = runAuditGate("npm-audit-unlisted.json");
+    expect(gate.status).not.toBe(0);
   });
 
   it("fails on an unrelated advisory even at moderate severity", () => {
