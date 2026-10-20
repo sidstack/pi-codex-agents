@@ -20,7 +20,7 @@ install the tag straight from GitHub:
 
 ```sh
 pi install npm:pi-codex-agents@beta
-pi install git:github.com/sidstack/pi-codex-agents@v1.1.0-beta.2
+pi install git:github.com/sidstack/pi-codex-agents@v1.1.0-beta.3
 ```
 
 Restart Pi after installation, or run `/reload` in an open Pi session.

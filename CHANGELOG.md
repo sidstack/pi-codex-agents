@@ -1,7 +1,25 @@
 # Changelog
 
-## Unreleased
+## 1.1.0-beta.3 — 2026-10-20
 
+- Launching Pi in a directory now starts a new managed session for that directory with its own
+  history every time, instead of resuming the session that directory already had. Sessions from
+  earlier launches of that directory stay available in the command center with their history and
+  drafts.
+- Ctrl+P now chooses a directory by fuzzy search over the directories the session knows plus one
+  bounded background scan: the directory opened from, its parent, a shallow pass over home, then
+  known session directories. A name matches first (exact, prefix, substring, letters in order), a
+  match anywhere in the full path is a weaker fallback, so `scr` still offers
+  `~/work/screenshots`; existing sessions outrank equal-quality plain directories and the list is
+  capped at 40 rows. The scan goes three levels deep (two under home), examines at most 3000
+  entries, gives up after a second, never traverses the filesystem root, never enters a symlinked
+  directory, skips heavy trees such as `node_modules`, `.git`, `dist`, `build`, `vendor`, and
+  hidden directories, and keeps its results in a snapshot that typing only re-filters.
+- Directory completion keeps its previous behavior alongside the search: `..`, `~/project`, and
+  absolute paths resolve against the session the picker opened from, a directory typed in full is
+  offered first, existing sessions are marked `existing`, a trailing `/` lists inside a directory
+  (that listing is capped at 200 entries and says so), an unreadable directory completes nothing
+  instead of failing, and the highlight follows the selected path while results change underneath.
 - Add `resumeLastSession` (default `false`). A launch in a directory keeps starting a new
   managed session. Set it to `true` to reopen that directory's last session instead: a live one,
   else its saved history and draft resumed in place, else a new session, with an unreachable
