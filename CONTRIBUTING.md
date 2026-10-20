@@ -3,6 +3,16 @@
 Read [the architecture](docs/ARCHITECTURE.md) first.
 Use Linux, Node 22.19+, and the exact Pi 1.3.0 development dependencies.
 
+## Branches and pull requests
+
+Do feature and fix work on a branch based on the latest `main`, then open a pull
+request targeting `main`. Avoid committing or pushing directly to `main`; use
+direct pushes only when a release or repository maintenance task requires them.
+For example, start work with `git switch main`, `git pull --ff-only`, and
+`git switch -c feat/short-description`. Push the branch and open a PR when it is
+ready for review. Keep the PR focused and describe the behavior changed, why, and
+the checks you ran.
+
 ```sh
 npm ci
 npm run release:check
