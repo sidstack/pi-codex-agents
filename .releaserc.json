@@ -1,0 +1,48 @@
+{
+  "tagFormat": "v${version}",
+  "branches": [
+    "main",
+    {
+      "name": "feat/**",
+      "prerelease": "${name.replace(/[^a-zA-Z0-9]+/g, '-')}-beta",
+      "channel": "beta-${name.replace(/[^a-zA-Z0-9]+/g, '-')}"
+    },
+    {
+      "name": "fix/**",
+      "prerelease": "${name.replace(/[^a-zA-Z0-9]+/g, '-')}-beta",
+      "channel": "beta-${name.replace(/[^a-zA-Z0-9]+/g, '-')}"
+    },
+    {
+      "name": "chore/**",
+      "prerelease": "${name.replace(/[^a-zA-Z0-9]+/g, '-')}-beta",
+      "channel": "beta-${name.replace(/[^a-zA-Z0-9]+/g, '-')}"
+    }
+  ],
+  "plugins": [
+    ["@semantic-release/commit-analyzer", { "preset": "conventionalcommits" }],
+    ["@semantic-release/release-notes-generator", { "preset": "conventionalcommits" }],
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md",
+        "changelogTitle": "# Changelog"
+      }
+    ],
+    ["@semantic-release/npm", { "npmPublish": true }],
+    ["@semantic-release/exec", { "prepareCmd": "node scripts/build.mjs" }],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["package.json", "package-lock.json", "CHANGELOG.md", "dist"]
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "successComment": false,
+        "failComment": false,
+        "assignIssues": false
+      }
+    ]
+  ]
+}

@@ -1,17 +1,20 @@
 name: Publish approved release
 on:
   push:
-    tags: ['v*']
+    branches: ['main', 'feat/**', 'fix/**', 'chore/**']
   workflow_dispatch:
+# semantic-release creates the release commit and the vVERSION tag with GITHUB_TOKEN.
+# GitHub does not start workflow runs for events caused by GITHUB_TOKEN, so tag pushes and
+# release commits cannot re-trigger this workflow; there is no tag trigger at all.
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
-  publish:
-    environment: npm
+  check:
+    name: Gate the release
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -28,5 +31,37 @@ jobs:
         run: |
           git diff --exit-code -- dist
           test -z "$(git ls-files --others --exclude-standard dist)"
-      - run: node scripts/publish-guard.mjs
-      - run: npm publish --provenance --ignore-scripts
+      # The published archive never ships devDependencies, so the gate audits the shipped
+      # dependency surface. The release toolchain pulls in micromatch -> braces, which has an
+      # open high advisory (GHSA-vfj7-8cjw-p6xm) with no published fix.
+      - run: npm audit --omit=dev
+  release:
+    name: Release and publish
+    needs: check
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - run: npm ci
+      - name: semantic-release
+        # Versions package.json and package-lock.json, writes CHANGELOG.md, rebuilds dist,
+        # commits and tags them, publishes to npm with trusted publishing and provenance,
+        # then opens the GitHub release. npm dist-tag comes from the branch channel:
+        # main publishes to latest, a prerelease branch to beta-BRANCHNAME.
+        run: npx --no-install semantic-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The identical release:check gate already ran in the check job on this commit, so
+          # the publish lifecycle asserts release identity instead of rebuilding everything.
+          PI_AUTOMATED_PUBLISH: 'true'
