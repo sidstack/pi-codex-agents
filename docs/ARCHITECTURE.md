@@ -1,7 +1,7 @@
 # Native extension architecture
 
 ```text
-ordinary Pi + pi-agents extension
+ordinary Pi + pi-codex-agents extension
   original native view and draft
   /agents → temporary terminal handoff
                  │ private JSONL: input, resize, Terminal methods
@@ -53,9 +53,11 @@ produces a Stopped session that stays inert until it is opened again.
 
 ## Pi contract
 
-Pi 1.3.0 exports InteractiveMode and SDK runtime creation but no public live-view
+Pi >=1.3.0 <1.5.0 exports InteractiveMode and SDK runtime creation but no public live-view
 attachment API. Private UI and shutdown/signal adaptations are scoped to owned mode
-instances. Pi's own exit keys (/quit, Ctrl+D, double Ctrl+C) and the command center's Ctrl+Q
+instances, and the extension accepts both private dialog layouts: Pi 1.3.x keeps one
+extension selector/input/editor field, while Pi 1.4.x keeps every open dialog answerable in an
+`extensionDialogs` stack. Pi's own exit keys (/quit, Ctrl+D, double Ctrl+C) and the command center's Ctrl+Q
 reach the host-owned mode, so the host turns them into the same explicit choice and reports
 `quitFrontend` to the
 frontend, which calls Pi's `ctx.shutdown()` when the user chose to quit. Ctrl+Z and
@@ -73,7 +75,12 @@ attached, or capability-less host is reported instead and replaced by the explic
 `/agents restart`; `autoUpdateHost: false` disables the automatic path. An incompatible
 protocol is refused with that instruction. Rebuilding therefore never interrupts a session.
 
-Host state lives under `pi-agents/host/`, with drafts under `pi-agents/host/drafts/`.
+Host state lives under `pi-codex-agents/host/`, with drafts under `pi-codex-agents/host/drafts/`.
+The pre-rename `pi-agents` directory is moved there once, by the frontend or a manually started
+host, and only when no live host lock claims it; a directory chosen by an environment variable is
+never moved, and two existing directories are never merged. Both `PI_CODEX_AGENTS_*` and the
+shorter `PI_AGENTS_*` environment names are read, and the frontend exports both, so a frontend
+and a host from different builds of this package still find each other.
 Ordinary Pi histories appear automatically
 as inactive entries. Foreign histories are read-only and fork into new identities;
 managed files resume in place in Pi's ordinary session directory. Stop the host
@@ -195,6 +202,9 @@ and 4 MiB inbound; socket backlog is bounded to 2 MiB and pending requests to 64
 The host permits at most 32 connections. A limit-induced socket loss is an error,
 never a claim that background execution succeeded.
 
-The tested SDK is now Pi 1.3.0. Peers and bootstrap/runtime checks accept stable
-1.3 patch releases (>=1.3.0 <1.4.0); private adapter method guards remain in force.
+The tested SDK is now Pi 1.4.0. Peers and bootstrap/runtime checks accept stable
+1.3.x and 1.4.x releases (>=1.3.0 <1.5.0); private adapter method guards remain in force
+and select the dialog layout the running Pi actually provides. A new Pi minor needs
+validation before its minor is added to the range. A private member that only exists in one
+minor never makes the other minor start: each adapter probes the shape it needs at runtime.
 Development and fresh-install tests pin a reproducible baseline.

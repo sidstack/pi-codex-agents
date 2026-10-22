@@ -9,7 +9,7 @@ Install the published package with Pi's package manager. See
 
 ## Install
 
-Requires Linux, Node 22.19+, and Pi **>=1.3.0 <1.4.0**; 1.3.0 is the tested baseline.
+Requires Linux, Node 22.19+, and Pi **>=1.3.0 <1.5.0**; 1.4.0 is the tested baseline.
 
 ```sh
 pi install npm:pi-codex-agents@latest
@@ -120,13 +120,13 @@ the same managed history and draft automatically. Running agents and pending dia
 are never evicted. Home stays loaded for navigation.
 
 `autoInactive: false` keeps settled sessions loaded, and `idleTimeoutMs: 0` disables the
-idle timer. Set PI_AGENTS_IDLE_MS before starting Pi to change the timeout; it overrides
+idle timer. Set PI_CODEX_AGENTS_IDLE_MS before starting Pi to change the timeout; it overrides
 the file. Restoration does not repeat prompts or tool calls. Live switching
 retains component state; inactivity rebuilds the native view from history.
 
 ## Optional features
 
-Create `~/.pi/agent/pi-agents/config.json` to override these defaults:
+Create `~/.pi/agent/pi-codex-agents/config.json` to override these defaults:
 
 ```json
 {
@@ -147,7 +147,7 @@ Create `~/.pi/agent/pi-agents/config.json` to override these defaults:
 
 Settings are validated; unknown keys are errors. Restart the host to apply its
 configuration and reload ordinary Pi to apply frontend shortcuts. The environment
-variable `PI_AGENTS_IDLE_MS` overrides `idleTimeoutMs`; `0` disables inactivity.
+variable `PI_CODEX_AGENTS_IDLE_MS` overrides `idleTimeoutMs`; `0` disables inactivity.
 Disabling history import hides untouched foreign histories and keeps managed copies.
 Disabling every optional feature still leaves `/agents`, creation, switching,
 restoration, terminal attachment, and explicit stop available.
@@ -228,7 +228,7 @@ Ordinary Pi histories appear automatically as Inactive. Opening one copies it in
 an independent native session; its original file stays unchanged. Managed inactive
 or stopped sessions reopen their own file under the host lock.
 
-Host state lives in `~/.pi/agent/pi-agents/host/`; managed conversations live in Pi's
+Host state lives in `~/.pi/agent/pi-codex-agents/host/`; managed conversations live in Pi's
 ordinary `~/.pi/agent/sessions/` directory. Each draft is its own private file under
 `host/drafts/`, so draft text never travels through the registry or a status response:
 status contains session metadata only, and a draft is read back into the editor when its
@@ -236,8 +236,15 @@ session is opened. If the extension is unavailable, stop its
 host before opening a managed history with ordinary Pi's session picker. Never open
 the same file for writing in Pi and a live host simultaneously.
 
-`PI_AGENTS_NATIVE_DIR` overrides host state; `PI_AGENTS_DIR` overrides the app root.
-`PI_CODING_AGENT_DIR` selects Pi's agent directory.
+`PI_CODEX_AGENTS_NATIVE_DIR` overrides host state; `PI_CODEX_AGENTS_DIR` overrides the app root.
+`PI_CODING_AGENT_DIR` selects Pi's agent directory. The shorter `PI_AGENTS_*` spellings are still
+accepted, and an older build of this package still exports them, so a frontend and a host from
+different builds keep working together.
+
+State used to live in `~/.pi/agent/pi-agents`. The first start moves it to
+`~/.pi/agent/pi-codex-agents` and says so once. The move is skipped while a host still owns the
+old directory (`/agents stop`, then restart Pi to finish it), never touches a directory an
+environment variable selected, and never merges two directories that both exist.
 
 Updating source does not disturb a running host. The frontend only requires the IPC protocol
 to match. A host that predates the current build is replaced automatically only when the
@@ -256,8 +263,9 @@ Managed runtimes share one host process. After a host crash, persisted conversat
 return and interrupted runs are marked failed; requests are never replayed. Live
 dialogs do not survive a host crash.
 
-Pi 1.3.0 requires guarded, instance-local private UI/shutdown adapters. Global Pi
-code is never patched. Third-party extensions may share globals across managed
+Pi 1.3.x and 1.4.x require guarded, instance-local private UI/shutdown adapters. Global Pi
+code is never patched. Pi 1.4.x moved extension dialogs into a stack, and the editor
+cancellation adapter reads either layout. Third-party extensions may share globals across managed
 runtimes; isolation and different per-session themes/providers need care.
 Direct process-stdio output goes to the host log. External editors and interactive
 subprocesses inheriting stdio are not supported by this Terminal transport.

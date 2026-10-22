@@ -13,7 +13,7 @@ This repository provides a native Pi extension for persistent agent sessions. Re
 
 ## Build, Test, and Development Commands
 
-Use Linux, Node.js 22.19+, and the pinned Pi 1.3.0 development dependencies. Smoke checks require Python 3 and a PTY-capable environment.
+Use Linux, Node.js 22.19+, and the pinned Pi 1.4.0 development dependencies. Smoke checks require Python 3 and a PTY-capable environment.
 
 - `npm ci`: install dependencies from the lockfile.
 - `npm run build`: regenerate `dist/`.

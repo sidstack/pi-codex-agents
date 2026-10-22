@@ -15,7 +15,7 @@ for (const directory of [agent, cwd]) await mkdir(directory);
 await cp(new URL("../dist/", import.meta.url).pathname, copied, { recursive: true });
 process.env.PI_CODING_AGENT_DIR = agent;
 process.env.PI_OFFLINE = "1";
-process.env.PI_AGENTS_NATIVE_DIR = join(agent, "pi-agents", "host");
+process.env.PI_CODEX_AGENTS_NATIVE_DIR = join(agent, "pi-codex-agents", "host");
 await writeFile(join(agent, "settings.json"), JSON.stringify({ quietStartup: true }));
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 
@@ -32,7 +32,7 @@ function writeHostIdentity({ version, protocol }) {
 function startCopiedHost() {
   const child = spawn(process.execPath, [join(copied, "host-entry.js"), cwd], {
     cwd, detached: true, stdio: ["ignore", "ignore", "inherit"],
-    env: { ...process.env, PI_AGENTS_NATIVE_DAEMON: "1", PI_AGENTS_PI_ROOT: join(process.cwd(), "node_modules/@earendil-works/pi-coding-agent") },
+    env: { ...process.env, PI_CODEX_AGENTS_NATIVE_DAEMON: "1", PI_CODEX_AGENTS_PI_ROOT: join(process.cwd(), "node_modules/@earendil-works/pi-coding-agent") },
   });
   child.on("error", () => {});
   child.unref();

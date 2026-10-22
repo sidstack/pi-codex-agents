@@ -147,7 +147,9 @@ export async function ensureNativeConnection(cwd: string, start = true, agentDir
   const logPath = join(paths.directory, "host.log");
   const log = privateAppend(logPath);
   const child = spawn(process.execPath, [fileURLToPath(new URL("../host-entry.js", import.meta.url)), cwd], {
-    cwd, env: { ...process.env, PI_CODING_AGENT_DIR: agentDir, PI_AGENTS_PI_ROOT: getPackageDir(), PI_AGENTS_NATIVE_DAEMON: "1" }, detached: true, stdio: ["ignore", log, log],
+    // Both name spellings are exported so a host from another build of this package still
+    // finds its SDK root and its own daemon marker.
+    cwd, env: { ...process.env, PI_CODING_AGENT_DIR: agentDir, PI_CODEX_AGENTS_PI_ROOT: getPackageDir(), PI_AGENTS_PI_ROOT: getPackageDir(), PI_CODEX_AGENTS_NATIVE_DAEMON: "1", PI_AGENTS_NATIVE_DAEMON: "1" }, detached: true, stdio: ["ignore", log, log],
   });
   child.on("error", () => {});
   child.unref(); closeSync(log);

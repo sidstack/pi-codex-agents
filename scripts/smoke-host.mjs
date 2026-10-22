@@ -14,7 +14,7 @@ const agent = join(root, "agent"), alpha = join(root, "alpha");
 await mkdir(agent); await mkdir(alpha);
 process.env.PI_CODING_AGENT_DIR = agent;
 process.env.PI_OFFLINE = "1";
-process.env.PI_AGENTS_NATIVE_DIR = join(agent, "pi-agents", "host");
+process.env.PI_CODEX_AGENTS_NATIVE_DIR = join(agent, "pi-codex-agents", "host");
 const clients = [];
 let owner;
 const deadline = setTimeout(() => { if (owner) process.kill(owner, "SIGKILL"); console.error("FAIL daemon smoke deadline"); process.exit(1); }, 60000);
@@ -34,8 +34,8 @@ const server = createServer(async (req, res) => {
   res.write(chunk({}, "stop")); res.end("data: [DONE]\n\n");
 });
 await new Promise((done) => server.listen(0, "127.0.0.1", done));
-await mkdir(join(agent, "pi-agents"), { recursive: true });
-await writeFile(join(agent, "pi-agents", "config.json"), JSON.stringify({ autoName: false }));
+await mkdir(join(agent, "pi-codex-agents"), { recursive: true });
+await writeFile(join(agent, "pi-codex-agents", "config.json"), JSON.stringify({ autoName: false }));
 await writeFile(join(agent, "settings.json"), JSON.stringify({ defaultProvider: "native-smoke", defaultModel: "native-smoke", quietStartup: true }));
 await writeFile(join(agent, "models.json"), JSON.stringify({ providers: { "native-smoke": {
   baseUrl: `http://127.0.0.1:${server.address().port}/v1`, api: "openai-completions", apiKey: "local-only",

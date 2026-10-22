@@ -1,7 +1,7 @@
-import { createServer, type Socket } from "node:net";
+import { createServer, type Server, type Socket } from "node:net";
 import { chmod, realpath, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { homedir } from "node:os";
 import { createHash } from "node:crypto";
 import { getAgentDir, ProjectTrustStore, type ExtensionContext, type InteractiveMode } from "@earendil-works/pi-coding-agent";
@@ -10,11 +10,12 @@ import { NativeSessionHost, type Session } from "./sessions.js";
 import { TerminalHub, RemoteTerminal } from "./remote-terminal.js";
 import { acquireNativeLock, processIdentity, writeNativeRegistry } from "./storage.js";
 import type { SessionFeature } from "../features/contracts.js";
-import { appDirectory, loadConfig, type Config } from "../config.js";
+import { loadConfig, nativeHostDirectory, type Config } from "../config.js";
 import { assertManagedFile, privateDirectory, readPrivateJSON } from "./security.js";
 import { VERSION, BUILD_ID, PROTOCOL_VERSION } from "../version.js";
 import { countUnsettled } from "./activity.js";
 import { NativeDraftStore } from "./drafts.js";
+import { unsupportedContract } from "../pi-version.js";
 
 export interface NativeSavedRecord {
   id: string; name: string; cwd: string; activity: Session["activity"];
@@ -24,8 +25,29 @@ export interface NativeSavedRecord {
 interface NativeRegistry { version: 1; activeId: string; sessions: NativeSavedRecord[]; }
 
 export function nativeDaemonPaths(agentDir = getAgentDir()): { directory: string; socket: string; registry: string } {
-  const directory = resolve(process.env.PI_AGENTS_NATIVE_DIR ?? join(appDirectory(agentDir), "host"));
+  const directory = nativeHostDirectory(agentDir);
   return { directory, socket: join(directory, "host.sock"), registry: join(directory, "registry.json") };
+}
+
+/** Claim the kernel-level ownership of one state directory. Both the current and the
+ * pre-rename abstract name are held, so an older build sharing the directory cannot start
+ * a second host over the same registry; a host in another directory stays independent. */
+async function claimHostOwnership(names: string[]): Promise<() => void> {
+  const servers: Server[] = [];
+  try {
+    for (const name of names) {
+      const server = createServer();
+      await new Promise<void>((done, reject) => {
+        server.once("error", reject);
+        server.listen(name, () => { server.off("error", reject); done(); });
+      });
+      servers.push(server);
+    }
+  } catch (error) {
+    for (const server of servers) server.close();
+    throw error;
+  }
+  return () => { for (const server of servers) server.close(); };
 }
 
 export async function startNativeDaemon(cwd: string, config: Readonly<Config> = Object.freeze(loadConfig()), features: readonly SessionFeature[] = []): Promise<void> {
@@ -33,12 +55,8 @@ export async function startNativeDaemon(cwd: string, config: Readonly<Config> = 
   privateDirectory(paths.directory);
   // Linux abstract sockets are released by the kernel even after SIGKILL. This
   // serializes stale-file recovery as well as normal concurrent launcher starts.
-  const ownership = createServer();
-  const ownerName = `\0pi-agents-native-${process.getuid?.() ?? 0}-${createHash("sha256").update(await realpath(paths.directory)).digest("hex").slice(0, 24)}`;
-  await new Promise<void>((done, reject) => {
-    ownership.once("error", reject);
-    ownership.listen(ownerName, () => { ownership.off("error", reject); done(); });
-  });
+  const suffix = `${process.getuid?.() ?? 0}-${createHash("sha256").update(await realpath(paths.directory)).digest("hex").slice(0, 24)}`;
+  const releaseOwnership = await claimHostOwnership([`\0pi-codex-agents-native-${suffix}`, `\0pi-agents-native-${suffix}`]);
   // The kernel lock proves that no conforming host can still be writing. A
   // SIGKILL may have interrupted even the initial bytes of either lock record.
   for (const stale of [join(paths.directory, "host.lock"), `${paths.registry}.lock`]) {
@@ -120,7 +138,7 @@ export async function startNativeDaemon(cwd: string, config: Readonly<Config> = 
     server.close();
     try { await unlink(paths.socket); } catch {}
     unlock();
-    ownership.close();
+    releaseOwnership();
     // A stopped host must actually stop: an unref'd timer would let a lingering handle
     // keep the process alive after its socket and lock are released.
     setTimeout(() => process.exit(failed ? 1 : 0), 100);
@@ -166,13 +184,13 @@ export async function startNativeDaemon(cwd: string, config: Readonly<Config> = 
   };
   host.prepareMode = (mode: InteractiveMode) => {
     // Instance adapter only. A daemon has no process terminal to suspend or exit.
-    // Pi 1.3.0's default shutdown calls process.exit; this host owns that decision.
+    // Pi's default shutdown calls process.exit; this host owns that decision.
     const native = mode as unknown as {
       registerSignalHandlers: () => void; shutdown: () => Promise<void>;
       handleCtrlZ: () => void; shutdownRequested: boolean;
     };
     for (const key of ["registerSignalHandlers", "shutdown", "handleCtrlZ"] as const) {
-      if (typeof native[key] !== "function") throw new Error(`Unsupported Pi 1.3.0 owned mode method: ${key}`);
+      if (typeof native[key] !== "function") throw new Error(unsupportedContract(`owned mode method ${key}`));
     }
     native.registerSignalHandlers = () => {};
     native.shutdown = async () => { native.shutdownRequested = false; await requestExit("quit"); };
@@ -288,7 +306,7 @@ export async function startNativeDaemon(cwd: string, config: Readonly<Config> = 
     try { await host.close(); } catch (cleanupError) { console.error(cleanupError); }
     try { await unlink(paths.socket); } catch {}
     unlock();
-    ownership.close();
+    releaseOwnership();
     throw error;
   }
 

@@ -1,7 +1,7 @@
 # Contributing
 
 Read [the architecture](docs/ARCHITECTURE.md) first.
-Use Linux, Node 22.19+, and the exact Pi 1.3.0 development dependencies.
+Use Linux, Node 22.19+, and the exact Pi 1.4.0 development dependencies.
 
 ## Branches and pull requests
 

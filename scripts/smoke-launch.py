@@ -16,18 +16,18 @@ import termios
 import time
 
 repo = Path(__file__).resolve().parent.parent
-with tempfile.TemporaryDirectory(prefix="pi-agents-launch-") as temp:
+with tempfile.TemporaryDirectory(prefix="pi-codex-agents-launch-") as temp:
     root = Path(temp)
     agent, alpha, beta = root / "agent", root / "alpha", root / "beta"
     for directory in (agent, alpha, beta):
         directory.mkdir()
     (agent / "settings.json").write_text(json.dumps({"quietStartup": True, "tui": {"mode": "fullscreen"}}))
     # The default is autoAttach: true. This harness leaves it at the default on purpose.
-    env = {**os.environ, "PI_CODING_AGENT_DIR": str(agent), "PI_AGENTS_NATIVE_DIR": str(root / "host"),
-           "PI_AGENTS_IDLE_MS": "0", "PI_OFFLINE": "1", "TERM": "xterm-256color"}
-    env.pop("PI_AGENTS_NATIVE_DAEMON", None)
+    env = {**os.environ, "PI_CODING_AGENT_DIR": str(agent), "PI_CODEX_AGENTS_NATIVE_DIR": str(root / "host"),
+           "PI_CODEX_AGENTS_IDLE_MS": "0", "PI_OFFLINE": "1", "TERM": "xterm-256color"}
+    env.pop("PI_CODEX_AGENTS_NATIVE_DAEMON", None)
 
-    cli = Path(os.environ.get("PI_AGENTS_TEST_PI_CLI", str(repo / "node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js")))
+    cli = Path(os.environ.get("PI_CODEX_AGENTS_TEST_PI_CLI", str(repo / "node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js")))
     args = ["node", str(cli), "-e", str(repo / "dist/extension.js")]
 
     def control(command):

@@ -26,6 +26,6 @@ export const statusFeature: SessionFeature = {
     const rows = [...host.sessions.values()];
     const summary = statusParts(rows).join(" · ");
     const entry = host.config.commandCenterShortcut ? "Ctrl+G" : "/agents";
-    for (const row of rows) row.context?.ui.setStatus("pi-agents-native", `${summary} · ${entry}`);
+    for (const row of rows) row.context?.ui.setStatus("pi-codex-agents-native", `${summary} · ${entry}`);
   },
 };

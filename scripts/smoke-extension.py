@@ -16,7 +16,7 @@ import termios
 import time
 
 repo = Path(__file__).resolve().parent.parent
-with tempfile.TemporaryDirectory(prefix="pi-agents-extension-") as temp:
+with tempfile.TemporaryDirectory(prefix="pi-codex-agents-extension-") as temp:
     root = Path(temp)
     agent, alpha, beta = root / "agent", root / "alpha", root / "beta"
     for directory in (agent, alpha, beta):
@@ -24,14 +24,14 @@ with tempfile.TemporaryDirectory(prefix="pi-agents-extension-") as temp:
     (agent / "settings.json").write_text(json.dumps({"quietStartup": True, "tui": {"mode": "fullscreen"}}))
     # These scenarios start in ordinary Pi and enter the host by key press, so the
     # launch attachment default is switched off here. scripts/smoke-launch.py covers it on.
-    (agent / "pi-agents").mkdir()
-    (agent / "pi-agents" / "config.json").write_text(json.dumps({"autoAttach": False}))
-    env = {**os.environ, "PI_CODING_AGENT_DIR": str(agent), "PI_AGENTS_NATIVE_DIR": str(root / "host"),
-           "PI_AGENTS_IDLE_MS": "1500", "PI_OFFLINE": "1", "TERM": "xterm-256color"}
-    env.pop("PI_AGENTS_NATIVE_DAEMON", None)
+    (agent / "pi-codex-agents").mkdir()
+    (agent / "pi-codex-agents" / "config.json").write_text(json.dumps({"autoAttach": False}))
+    env = {**os.environ, "PI_CODING_AGENT_DIR": str(agent), "PI_CODEX_AGENTS_NATIVE_DIR": str(root / "host"),
+           "PI_CODEX_AGENTS_IDLE_MS": "1500", "PI_OFFLINE": "1", "TERM": "xterm-256color"}
+    env.pop("PI_CODEX_AGENTS_NATIVE_DAEMON", None)
 
-    cli = Path(os.environ.get("PI_AGENTS_TEST_PI_CLI", str(repo / "node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js")))
-    tarball = os.environ.get("PI_AGENTS_TEST_TARBALL")
+    cli = Path(os.environ.get("PI_CODEX_AGENTS_TEST_PI_CLI", str(repo / "node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js")))
+    tarball = os.environ.get("PI_CODEX_AGENTS_TEST_TARBALL")
     package = json.loads((repo / "package.json").read_text())["name"]
     if tarball:
         subprocess.run(["node", str(cli), "install", "npm:" + package + "@file:" + tarball], cwd=alpha, env=env, check=True, timeout=120)

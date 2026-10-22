@@ -9,8 +9,8 @@ export function privateDirectory(path: string): void {
   const absolute = resolve(path);
   mkdirSync(absolute, { recursive: true, mode: 0o700 });
   const info = lstatSync(absolute);
-  if (!info.isDirectory() || info.isSymbolicLink() || !owned(info)) throw new Error(`Unsafe pi-agents state directory: ${absolute}`);
-  if (realpathSync(absolute) !== absolute) throw new Error(`Symlinked pi-agents state directory: ${absolute}`);
+  if (!info.isDirectory() || info.isSymbolicLink() || !owned(info)) throw new Error(`Unsafe pi-codex-agents state directory: ${absolute}`);
+  if (realpathSync(absolute) !== absolute) throw new Error(`Symlinked pi-codex-agents state directory: ${absolute}`);
   chmodSync(absolute, 0o700);
 }
 
@@ -18,7 +18,7 @@ export function privateAppend(path: string): number {
   privateDirectory(dirname(path));
   const fd = openSync(path, constants.O_WRONLY | constants.O_CREAT | constants.O_APPEND | constants.O_NOFOLLOW, 0o600);
   const info = fstatSync(fd);
-  if (!info.isFile() || !owned(info) || info.nlink !== 1) { closeSync(fd); throw new Error(`Unsafe pi-agents log: ${path}`); }
+  if (!info.isFile() || !owned(info) || info.nlink !== 1) { closeSync(fd); throw new Error(`Unsafe pi-codex-agents log: ${path}`); }
   fchmodSync(fd, 0o600);
   return fd;
 }
@@ -41,6 +41,6 @@ export function plainText(text: string): string {
 
 export function readPrivateJSON(path: string): unknown {
   const info = lstatSync(path);
-  if (!info.isFile() || info.isSymbolicLink() || !owned(info) || info.nlink !== 1 || info.size > MAX_PRIVATE_JSON_BYTES) throw new Error(`Unsafe or oversized pi-agents state file: ${path}`);
+  if (!info.isFile() || info.isSymbolicLink() || !owned(info) || info.nlink !== 1 || info.size > MAX_PRIVATE_JSON_BYTES) throw new Error(`Unsafe or oversized pi-codex-agents state file: ${path}`);
   return JSON.parse(readFileSync(path, "utf8"));
 }
