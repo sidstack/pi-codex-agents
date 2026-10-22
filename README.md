@@ -106,13 +106,13 @@ session reports a run in flight or a pending prompt, and aborts only those runs.
 New sessions start with the directory name until they have a first message. `autoName`
 (default `true`) then names them in two steps: an instant extractive label from the first
 message, followed by one model request for a short title (at most the first 2,000 characters
-of that message, 256 output tokens on minimal thinking, 15 seconds). The label appears as
+of that message, 256 output tokens on minimal thinking, 45 seconds). The label appears as
 soon as the first message is recorded, while the run is still going; the model request waits
 for that session's
 first completed turn, or starts immediately when the first message is longer than 2,000
 characters. A host restart also labels restored sessions that never got a name. It adds no
 conversation turn and follows normal provider billing. A failed, cancelled, or hung request is
-retried up to three times, 30 seconds apart, and each failed attempt is recorded in `host.log`;
+retried up to three times, 20 seconds apart, and each failed attempt is recorded in `host.log`;
 after the third the extractive label stays and one notice reports the reason. Requests are
 independent per session, so other sessions starting work never cancel a pending title. Set
 `nameModel` to a `"provider/id"` model to title with a cheaper model than the session's own; a

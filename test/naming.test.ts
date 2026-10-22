@@ -94,9 +94,9 @@ describe("session naming", () => {
     f.host.settled(f.record, f.ctx);
     await tick();
     expect(f.generate).toHaveBeenCalledTimes(1);
-    await tick(21_000);
+    await tick(61_000);
     expect(errors.some((line) => String(line).includes("did not finish"))).toBe(true);
-    await tick(31_000);
+    await tick(21_000);
     expect(f.generate).toHaveBeenCalledTimes(2);
     spy.mockRestore();
   });
@@ -254,7 +254,7 @@ describe("session naming", () => {
     const requestOptions = streamSimple.mock.calls[0]![2] as { maxTokens: number; reasoning: string; timeoutMs: number };
     expect(requestOptions.reasoning).toBe("minimal");
     expect(requestOptions.maxTokens).toBe(256);
-    expect(requestOptions.timeoutMs).toBe(15000);
+    expect(requestOptions.timeoutMs).toBe(45000);
     expect(f.setSessionName).toHaveBeenLastCalledWith("Tiny model title");
   });
 });

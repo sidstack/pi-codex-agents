@@ -14,14 +14,15 @@ export interface NamingFeatureOptions {
 const MAX_INPUT = 2000;
 /** A reasoning model that spends the whole output budget on thinking returns no title. */
 const MAX_OUTPUT_TOKENS = 256;
-const REQUEST_TIMEOUT_MS = 15000;
+/** Routing providers and shared queues are slow: a 15 second budget aborted valid requests. */
+const REQUEST_TIMEOUT_MS = 45000;
 /** A provider that ignores its abort signal must not hold a slot forever. */
-const HARD_DEADLINE_MS = REQUEST_TIMEOUT_MS + 5000;
+const HARD_DEADLINE_MS = REQUEST_TIMEOUT_MS + 15000;
 /** A first message this long is a weak extractive-title input, so ask the model right away. */
 const IMMEDIATE_INPUT_CHARS = 2000;
 const MAX_ATTEMPTS = 3;
 const MAX_CONCURRENT = 2;
-const RETRY_DELAY_MS = 30000;
+const RETRY_DELAY_MS = 20000;
 
 /** A naming request that can never succeed for this session; retrying would only spend more requests. */
 export class NamingError extends Error {}
@@ -50,7 +51,13 @@ export async function generateSessionName(ctx: ExtensionContext, firstMessage: s
     messages: [{ role: "user", content: firstMessage.slice(0, MAX_INPUT), timestamp: Date.now() }],
   }, { signal, timeoutMs: REQUEST_TIMEOUT_MS, maxTokens: MAX_OUTPUT_TOKENS, reasoning: "minimal" }).result();
   if (message.stopReason === "error" || message.stopReason === "aborted") throw new Error(message.errorMessage || "Session naming was cancelled");
-  return message.content.flatMap((part) => part.type === "text" ? [part.text] : []).join(" ");
+  const text = message.content.flatMap((part) => part.type === "text" ? [part.text] : []).join(" ");
+  if (!text.trim()) {
+    // Distinguish "no answer" from "wrong answer" in the log without echoing model output.
+    const parts = message.content.map((part) => part.type).join("+") || "none";
+    throw new Error(`The model returned no usable title (stopReason=${message.stopReason}, parts=${parts})`);
+  }
+  return text;
 }
 
 function title(text: string): string {
