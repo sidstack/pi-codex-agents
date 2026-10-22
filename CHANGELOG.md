@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0-fix-naming-reliability-beta.2](https://github.com/sidstack/pi-codex-agents/compare/v1.3.0-fix-naming-reliability-beta.1...v1.3.0-fix-naming-reliability-beta.2) (2026-10-22)
+
+### Bug Fixes
+
+* **naming:** label the session from the message event and time out hung requests ([5f6e34d](https://github.com/sidstack/pi-codex-agents/commit/5f6e34da8df515cffd6bf27ba20fbeb7ef9b7bcb))
+
 ## [1.3.0-fix-naming-reliability-beta.1](https://github.com/sidstack/pi-codex-agents/compare/v1.2.0...v1.3.0-fix-naming-reliability-beta.1) (2026-10-22)
 
 ### Features
