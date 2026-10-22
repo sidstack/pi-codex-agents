@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0-fix-naming-reliability-beta.4](https://github.com/sidstack/pi-codex-agents/compare/v1.3.0-fix-naming-reliability-beta.3...v1.3.0-fix-naming-reliability-beta.4) (2026-10-22)
+
+### Bug Fixes
+
+* **naming:** widen the title budget and report empty model answers ([ad40e82](https://github.com/sidstack/pi-codex-agents/commit/ad40e821746cbaffae0a56d4d8d0a3ab394deb4f))
+
 ## [1.3.0-fix-naming-reliability-beta.3](https://github.com/sidstack/pi-codex-agents/compare/v1.3.0-fix-naming-reliability-beta.2...v1.3.0-fix-naming-reliability-beta.3) (2026-10-22)
 
 ### Bug Fixes

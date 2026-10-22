@@ -1,6 +1,6 @@
 {
   "name": "pi-codex-agents",
-  "version": "1.3.0-fix-naming-reliability-beta.3",
+  "version": "1.3.0-fix-naming-reliability-beta.4",
   "description": "Native Pi extension for persistent agent sessions and a session command center",
   "type": "module",
   "engines": {
