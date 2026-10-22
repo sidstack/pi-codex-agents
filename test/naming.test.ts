@@ -20,7 +20,7 @@ interface Fixture {
   other: Session;
 }
 
-function fixture(options: { generate?: NameGenerator; nameModel?: string; firstMessage?: string; realGenerator?: boolean } = {}): Fixture {
+function fixture(options: { generate?: NameGenerator; nameModel?: string; firstMessage?: string; realGenerator?: boolean; branchless?: boolean } = {}): Fixture {
   const generate = vi.fn(options.generate ?? (async () => "Repair native session recovery"));
   const feature = createNamingFeature({
     ...(options.realGenerator ? {} : { generate }),
@@ -35,7 +35,7 @@ function fixture(options: { generate?: NameGenerator; nameModel?: string; firstM
   const ctx = {
     sessionManager: {
       getSessionName: () => stored,
-      getBranch: () => [{ type: "message", message: { role: "user", content: text } } as never],
+      getBranch: () => (options.branchless ? [] : [{ type: "message", message: { role: "user", content: text } } as never]),
     },
     model: { id: "session-model" },
     modelRegistry: { find, hasConfiguredAuth: vi.fn(() => false), streamSimple: vi.fn() },
@@ -65,6 +65,51 @@ describe("session naming", () => {
     expect(f.record.name).toBe("fix the native recovery race in session restore");
   });
 
+  it("labels at the message event before native persistence reaches the session tree", () => {
+    vi.useFakeTimers();
+    const f = fixture({ branchless: true });
+    f.host.messageEnd(f.record, f.ctx, userMessage);
+    expect(f.generate).not.toHaveBeenCalled();
+    expect(f.setSessionName).toHaveBeenCalledWith("fix the native recovery race in session restore");
+    expect(f.record.name).toBe("fix the native recovery race in session restore");
+  });
+
+  it("ends the extractive label at a leading sentence boundary", async () => {
+    vi.useFakeTimers();
+    expect(extractiveName("there is an issue with session naming.. all active sessions show dir x format when started"))
+      .toBe("there is an issue with session naming");
+    expect(extractiveName("Fix the parser. Then ship it and keep going with several more words"))
+      .toBe("Fix the parser");
+    const f = fixture();
+    const sentence = { role: "user", content: "Investigate native terminal ownership. Then write the regression test and ship it today" } as unknown as MessageEndEvent["message"];
+    f.host.messageEnd(f.record, f.ctx, sentence);
+    expect(f.record.name).toBe("Investigate native terminal ownership");
+  });
+
+  it("gives up on a hung title request instead of holding its slot forever", async () => {
+    vi.useFakeTimers();
+    const errors: unknown[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => { errors.push(args.join(" ")); });
+    const f = fixture({ generate: () => new Promise<string>(() => { /* never settles, ignores abort */ }) });
+    f.host.settled(f.record, f.ctx);
+    await tick();
+    expect(f.generate).toHaveBeenCalledTimes(1);
+    await tick(21_000);
+    expect(errors.some((line) => String(line).includes("did not finish"))).toBe(true);
+    await tick(31_000);
+    expect(f.generate).toHaveBeenCalledTimes(2);
+    spy.mockRestore();
+  });
+
+  it("labels restored live sessions when features refresh", async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    await f.host.refreshFeatures();
+    await tick();
+    expect(f.setSessionName).toHaveBeenCalledWith("fix the native recovery race in session restore");
+    expect(f.generate).not.toHaveBeenCalled();
+  });
+
   it("refines the label with one bounded model request after the first settled turn", async () => {
     vi.useFakeTimers();
     const f = fixture();
@@ -82,8 +127,9 @@ describe("session naming", () => {
 
   it("titles a long first message immediately instead of waiting for the turn", async () => {
     vi.useFakeTimers();
-    const f = fixture({ firstMessage: "x".repeat(2600) });
-    f.host.messageEnd(f.record, f.ctx, userMessage);
+    const f = fixture();
+    const long = { role: "user", content: "x".repeat(2600) } as unknown as MessageEndEvent["message"];
+    f.host.messageEnd(f.record, f.ctx, long);
     await tick();
     expect(f.generate).toHaveBeenCalledTimes(1);
     expect(f.generate.mock.calls[0]![1]).toHaveLength(2000);

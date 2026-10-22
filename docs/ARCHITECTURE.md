@@ -188,8 +188,11 @@ The optional naming feature listens only to new user messages and `agent_settled
 never restoration. It first writes a deterministic extractive label with the native
 `setSessionName` operation, then queues one bounded title request per session through the
 context's public model registry, optionally on the configured `nameModel` instead of the
-session's own model. Each request owns its abort controller and timeout, is retried a bounded
-number of times with a delay, and is cancelled only by its own session's disposal or host
+session's own model. Pi dispatches extension `message_end` before SessionManager persists that
+message, so the label reads the message from the event rather than back from the session tree,
+and a host refresh labels restored live sessions that never got one. Each request owns its
+abort controller and timeout, is retried a bounded number of times with a delay, records each
+failed attempt in `host.log`, and is cancelled only by its own session's disposal or host
 close; other sessions starting work never cancel it. Native manual names are checked before
 and after generation. No agent prompt or tool execution is used.
 

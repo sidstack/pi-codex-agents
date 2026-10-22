@@ -1,4 +1,4 @@
-import type { AgentSessionRuntime, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { AgentSessionRuntime, ExtensionContext, MessageEndEvent } from "@earendil-works/pi-coding-agent";
 import type { NativeSessionHost, Session } from "../core/sessions.js";
 import type { SessionFeature } from "./contracts.js";
 
@@ -13,6 +13,8 @@ export interface NamingFeatureOptions {
 
 const MAX_INPUT = 2000;
 const REQUEST_TIMEOUT_MS = 15000;
+/** A provider that ignores its abort signal must not hold a slot forever. */
+const HARD_DEADLINE_MS = REQUEST_TIMEOUT_MS + 5000;
 /** A first message this long is a weak extractive-title input, so ask the model right away. */
 const IMMEDIATE_INPUT_CHARS = 2000;
 const MAX_ATTEMPTS = 3;
@@ -21,6 +23,8 @@ const RETRY_DELAY_MS = 30000;
 
 /** A naming request that can never succeed for this session; retrying would only spend more requests. */
 export class NamingError extends Error {}
+
+class NamingTimeout extends Error {}
 
 function resolveNamingModel(ctx: ExtensionContext, nameModel?: string) {
   const configured = nameModel?.trim();
@@ -54,22 +58,31 @@ function title(text: string): string {
 /** Deterministic label from the first user message: an instant name before any model request. */
 export function extractiveName(text: string): string {
   const line = text.split(/\r?\n/)
-    .map((row) => row.replace(/^[`>\-*#\s]+/, "").trim())
+    .map((row) => row.replace(/^[`>*\-\s]+/, "").trim())
     .find((row) => row.length);
   if (!line) return "";
   const words = line.split(/\s+/);
-  let name = words.length > 8 ? words.slice(0, 8).join(" ") : line;
-  if (name.length > 60) name = name.slice(0, 60);
-  name = name.replace(/\s+$/, "").replace(/[,;:.!?"'`)\]]+$/, "");
+  // A short leading sentence is the best label. Otherwise take a bounded prefix of words.
+  const window = words.slice(0, 12);
+  const sentenceEnd = window.findIndex((word) => /[.!?:]$/.test(word));
+  let name = sentenceEnd >= 0 ? window.slice(0, sentenceEnd + 1).join(" ") : words.slice(0, 8).join(" ");
+  if (name.length > 60) name = name.slice(0, 60).replace(/\s+\S*$/, "");
+  name = name.replace(/\s+$/, "").replace(/[,;:.!"'`)\]]+$/, "");
   return title(name);
+}
+
+function messageText(message: MessageEndEvent["message"]): string {
+  const content = (message as { content?: unknown }).content;
+  const text = typeof content === "string" ? content
+    : Array.isArray(content) ? content.flatMap((part) => part && typeof part === "object" && (part as { type?: string }).type === "text" ? [String((part as { text?: unknown }).text ?? "")] : []).join(" ")
+      : "";
+  return text.trim() ? text : "";
 }
 
 function firstUserText(ctx: ExtensionContext): string {
   const first = ctx.sessionManager.getBranch().find((entry) => entry.type === "message" && entry.message.role === "user");
-  if (!first || first.type !== "message" || first.message.role !== "user") return "";
-  const content = first.message.content;
-  const text = typeof content === "string" ? content : content.flatMap((part) => part.type === "text" ? [part.text] : []).join(" ");
-  return text.trim() ? text : "";
+  if (!first || first.type !== "message") return "";
+  return messageText(first.message);
 }
 
 interface QueueItem {
@@ -136,20 +149,18 @@ export function createNamingFeature(options: NamingFeatureOptions = {}): Session
     host.onChange();
   }
 
-  /** Retry a failed request a bounded number of times, then keep the extractive label and report once. */
-  function retry(host: NativeSessionHost, record: Session, item: QueueItem, reason: string): void {
-    item.lastError = reason;
-    if (item.attempts >= MAX_ATTEMPTS) { finish(host, record, reason); return; }
-    item.awaitTurn = false;
-    item.notBefore = Date.now() + RETRY_DELAY_MS;
-  }
-
-  function start(host: NativeSessionHost, record: Session, ctx: ExtensionContext, item: QueueItem, runtime: AgentSessionRuntime): void {
+  function attempt(host: NativeSessionHost, record: Session, ctx: ExtensionContext, item: QueueItem, runtime: AgentSessionRuntime): void {
     const controller = new AbortController();
     inFlight.set(record.id, { controller, runtime });
     item.attempts++;
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    void generate(ctx, item.text, controller.signal).then((result) => {
+    // A provider that ignores the abort signal must not hold a slot or hide the failure.
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    const request = Promise.race([
+      generate(ctx, item.text, controller.signal),
+      new Promise<never>((_done, fail) => { deadline = setTimeout(() => fail(new NamingTimeout("The title request did not finish")), HARD_DEADLINE_MS); }),
+    ]);
+    void request.then((result) => {
       const name = title(result);
       const live = !closed && !controller.signal.aborted && record.runtime === runtime && !record.stopping;
       if (live && name && oursStill(record.id, ctx.sessionManager.getSessionName())) {
@@ -167,9 +178,19 @@ export function createNamingFeature(options: NamingFeatureOptions = {}): Session
       else retry(host, record, item, reason);
     }).finally(() => {
       clearTimeout(timer);
+      if (deadline) clearTimeout(deadline);
       inFlight.delete(record.id);
       pump(host);
     });
+  }
+
+  /** Retry a failed request a bounded number of times, then keep the extractive label and report once. */
+  function retry(host: NativeSessionHost, record: Session, item: QueueItem, reason: string): void {
+    item.lastError = reason;
+    console.error(`pi-codex-agents naming: attempt ${item.attempts} for session ${record.id} failed: ${reason}`);
+    if (item.attempts >= MAX_ATTEMPTS) { finish(host, record, reason); return; }
+    item.awaitTurn = false;
+    item.notBefore = Date.now() + RETRY_DELAY_MS;
   }
 
   function pump(host: NativeSessionHost): void {
@@ -189,25 +210,28 @@ export function createNamingFeature(options: NamingFeatureOptions = {}): Session
       if (item.attempts >= MAX_ATTEMPTS) { finish(host, record, item.lastError || "Session naming stopped"); continue; }
       // A freed slot re-enters pump through the finishing request, so no timer is needed.
       if (inFlight.size >= MAX_CONCURRENT) continue;
-      start(host, record, ctx, item, record.runtime);
+      attempt(host, record, ctx, item, record.runtime);
     }
     if (Number.isFinite(nextWake)) wakeSoon(host, nextWake - Date.now());
   }
 
-  /** Queue one title request for an unnamed session and label it immediately when possible. */
-  function consider(host: NativeSessionHost, record: Session, ctx: ExtensionContext): void {
+  /** Queue one title request for an unnamed session and label it immediately when possible.
+   * `text` carries the first message when the caller already holds it: Pi dispatches extension
+   * `message_end` before SessionManager persists that message, so reading it back from the
+   * session tree at that moment finds nothing. */
+  function consider(host: NativeSessionHost, record: Session, ctx: ExtensionContext, text?: string): void {
     if (closed || finished.has(record.id) || record.stopping) return;
     const stored = ctx.sessionManager.getSessionName();
     if (stored && !oursStill(record.id, stored)) { finished.add(record.id); queue.delete(record.id); return; }
     let item = queue.get(record.id);
     if (!item) {
       if (stored) { finished.add(record.id); return; }
-      const text = firstUserText(ctx);
-      if (!text) return;
-      const guess = extractiveName(text);
+      const source = text?.trim() ? text : firstUserText(ctx);
+      if (!source) return;
+      const guess = extractiveName(source);
       // The extractive label is free and instant, so the board never shows a bare directory.
       if (guess) apply(host, record, guess, "extractive");
-      item = { text: text.slice(0, MAX_INPUT), attempts: 0, awaitTurn: text.length <= IMMEDIATE_INPUT_CHARS, notBefore: 0 };
+      item = { text: source.slice(0, MAX_INPUT), attempts: 0, awaitTurn: source.length <= IMMEDIATE_INPUT_CHARS, notBefore: 0 };
       queue.set(record.id, item);
     }
     pump(host);
@@ -233,8 +257,16 @@ export function createNamingFeature(options: NamingFeatureOptions = {}): Session
       }
       pump(host);
     },
+    // A host restart restores live sessions that never got a name. Label them here instead of
+    // waiting for the user to return to each one.
+    refresh: async (host) => {
+      for (const record of host.sessions.values()) {
+        const ctx = record.context;
+        if (ctx && record.runtime) consider(host, record, ctx);
+      }
+    },
     messageEnd(host, record, ctx, message) {
-      if (message.role === "user") consider(host, record, ctx);
+      if (message.role === "user") consider(host, record, ctx, messageText(message));
     },
     settled(host, record, ctx) {
       consider(host, record, ctx);
