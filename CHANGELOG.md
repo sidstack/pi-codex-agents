@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0-fix-naming-reliability-beta.1](https://github.com/sidstack/pi-codex-agents/compare/v1.2.0...v1.3.0-fix-naming-reliability-beta.1) (2026-10-22)
+
+### Features
+
+* **naming:** label sessions immediately and retry title requests ([827c696](https://github.com/sidstack/pi-codex-agents/commit/827c696fdc3214e916af5ab8e8ac20e955cd6bae))
+
 ## [1.2.0](https://github.com/sidstack/pi-codex-agents/compare/v1.1.0...v1.2.0) (2026-10-22)
 
 ### Features
