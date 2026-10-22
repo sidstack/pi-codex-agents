@@ -251,6 +251,10 @@ describe("session naming", () => {
     await tick();
     expect(f.find).toHaveBeenCalledWith("acme", "tiny");
     expect(streamSimple.mock.calls[0]![0]).toBe(model);
+    const requestOptions = streamSimple.mock.calls[0]![2] as { maxTokens: number; reasoning: string; timeoutMs: number };
+    expect(requestOptions.reasoning).toBe("minimal");
+    expect(requestOptions.maxTokens).toBe(256);
+    expect(requestOptions.timeoutMs).toBe(15000);
     expect(f.setSessionName).toHaveBeenLastCalledWith("Tiny model title");
   });
 });
