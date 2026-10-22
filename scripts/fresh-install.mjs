@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const root = new URL("..", import.meta.url);
-const temp = mkdtempSync(join(tmpdir(), "pi-agents-install-"));
+const temp = mkdtempSync(join(tmpdir(), "pi-codex-agents-install-"));
 const run = (command, args, options = {}) => {
   const result = spawnSync(command, args, { cwd: root, stdio: "inherit", ...options });
   if (result.status !== 0) throw new Error(`${command} exited ${result.status ?? result.error}`);
@@ -14,9 +14,9 @@ try {
   const tarball = join(temp, readdirSync(temp).find((name) => name.endsWith(".tgz")));
   const pi = join(temp, "pi"); mkdirSync(pi);
   // A separate real Pi installation, with no module lookup into the checkout.
-  run("npm", ["install", "--prefix", pi, "--no-audit", "--no-fund", "--package-lock=false", "@earendil-works/pi-coding-agent@1.3.0"]);
+  run("npm", ["install", "--prefix", pi, "--no-audit", "--no-fund", "--package-lock=false", "@earendil-works/pi-coding-agent@1.4.0"]);
   const cli = join(pi, "node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js");
-  run("python3", ["scripts/smoke-extension.py"], { env: { ...process.env, PI_AGENTS_TEST_TARBALL: tarball, PI_AGENTS_TEST_PI_CLI: cli } });
+  run("python3", ["scripts/smoke-extension.py"], { env: { ...process.env, PI_CODEX_AGENTS_TEST_TARBALL: tarball, PI_CODEX_AGENTS_TEST_PI_CLI: cli } });
 
   // Reproduce the Git installer's omit-dev behavior using an independent source
   // copy: no compiler, no SDK peers, and no lifecycle dependency on the checkout.

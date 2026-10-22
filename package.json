@@ -1,6 +1,6 @@
 {
   "name": "pi-codex-agents",
-  "version": "1.1.0",
+  "version": "1.2.0-feat-pi-1-4-support-beta.1",
   "description": "Native Pi extension for persistent agent sessions and a session command center",
   "type": "module",
   "engines": {
@@ -33,8 +33,8 @@
     "prepublishOnly": "node scripts/prepublish.mjs"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "1.3.0",
-    "@earendil-works/pi-tui": "1.3.0",
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@earendil-works/pi-tui": "1.4.0",
     "@semantic-release/changelog": "6.0.3",
     "@semantic-release/commit-analyzer": "13.0.1",
     "@semantic-release/exec": "7.1.0",
@@ -47,7 +47,7 @@
     "conventional-changelog-conventionalcommits": "9.3.1",
     "semantic-release": "25.0.9",
     "typescript": "5.9.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.12"
   },
   "pi": {
     "extensions": [
@@ -55,8 +55,8 @@
     ]
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=1.3.0 <1.4.0",
-    "@earendil-works/pi-tui": ">=1.3.0 <1.4.0"
+    "@earendil-works/pi-coding-agent": ">=1.3.0 <1.5.0",
+    "@earendil-works/pi-tui": ">=1.3.0 <1.5.0"
   },
   "license": "MIT",
   "repository": {

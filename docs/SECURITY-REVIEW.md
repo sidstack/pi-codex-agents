@@ -52,8 +52,9 @@ This is a source review with regression/integration checks, not an independent a
 4. **Crash recovery is conservative.** Stored history/drafts return; interrupted
    runs are marked failed. Requests/tools are never replayed. Live dialogs and
    unpersisted extension memory do not survive a host crash or idle disposal.
-5. **Private native APIs are version-bound.** Pi >=1.3.0 <1.4.0 is supported, tested with 1.3.0. Guarded
-   instance adapters touch UI and shutdown behavior; no global patches are applied.
+5. **Private native APIs are version-bound.** Pi >=1.3.0 <1.5.0 is supported, tested with 1.4.0. Guarded
+   instance adapters touch UI and shutdown behavior, and choose between the 1.3.x single-dialog
+   and 1.4.x dialog-stack layouts at runtime; no global patches are applied.
 6. **Transport supports Pi Terminal methods.** Direct process stdio goes to a private
    host log; external editors and inherited-stdio interactive programs are unsupported.
    Native transcript output retains Pi's usual trust and rendering behavior.

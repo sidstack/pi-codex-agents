@@ -10,14 +10,14 @@ import { loadConfig } from "../config.js";
 import { privateDirectory, assertManagedFile } from "./security.js";
 import { TerminalLease } from "./terminal.js";
 import { nativePromptCancellation } from "./native-prompts.js";
-import { PI_VERSION_RANGE, supportedPiVersion } from "../pi-version.js";
+import { PI_VERSION_RANGE, supportedPiVersion, unsupportedContract } from "../pi-version.js";
 import { countUnsettled } from "./activity.js";
 // Pi exposes no public attach API. Keep the one private-field dependency here,
-// guarded at runtime and restricted to the exact version tested by pi-agents.
+// guarded at runtime and restricted to the Pi minors this package validates.
 export function nativeTui(mode) {
     const ui = mode.ui;
     if (!ui || typeof ui.start !== "function" || typeof ui.requestRender !== "function") {
-        throw new Error("Unsupported Pi native TUI: expected the Pi 1.3.0 InteractiveMode.ui contract");
+        throw new Error(unsupportedContract("InteractiveMode.ui"));
     }
     return ui;
 }
@@ -27,7 +27,7 @@ export function checkNativeVersion() {
         return;
     const pkg = JSON.parse(readFileSync(join(getPackageDir(), "package.json"), "utf8"));
     if (!supportedPiVersion(pkg.version))
-        throw new Error(`pi-agents requires Pi ${PI_VERSION_RANGE}; found ${pkg.version}`);
+        throw new Error(`pi-codex-agents requires Pi ${PI_VERSION_RANGE}; found ${pkg.version}`);
     nativeVersionChecked = true;
 }
 export class NativeSessionHost extends NativeFleet {
@@ -343,7 +343,7 @@ export class NativeSessionHost extends NativeFleet {
                 const services = await createAgentSessionServices({
                     cwd: options.cwd, agentDir: options.agentDir, settingsManager,
                     resourceLoaderOptions: {
-                        extensionFactories: [{ name: "pi-agents-native", factory: (pi) => install(pi, this, record) }],
+                        extensionFactories: [{ name: "pi-codex-agents-native", factory: (pi) => install(pi, this, record) }],
                     },
                 });
                 const result = await createAgentSessionFromServices({
@@ -691,13 +691,13 @@ function install(pi, host, record) {
             host.event(record, "prompt-end");
     });
     // Native replacement tears down a live runtime and can open a second writer.
-    // Navigation and creation must go through the fleet in pi-agents.
+    // Navigation and creation must go through the fleet in pi-codex-agents.
     pi.on("session_before_switch", (_event, ctx) => {
         ctx.ui.notify("Use /agents to switch live sessions or /agents new to create one.", "info");
         return { cancel: true };
     });
     pi.on("session_before_fork", (_event, ctx) => {
-        ctx.ui.notify("Forking history is outside pi-agents; use /agents new.", "info");
+        ctx.ui.notify("Forking history is outside pi-codex-agents; use /agents new.", "info");
         return { cancel: true };
     });
     pi.on("session_shutdown", async (event) => {

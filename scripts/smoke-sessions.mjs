@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Real Pi 1.3.0 native views; fake terminal and local deterministic model. No paid tokens. */
+/** Real Pi native views; fake terminal and local deterministic model. No paid tokens. */
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
@@ -10,7 +10,7 @@ import { configuredFeatures } from "../dist/features/index.js";
 import { NativeSessionHost } from "../dist/core/sessions.js";
 
 process.env.PI_OFFLINE = "1";
-const root = await mkdtemp(join(tmpdir(), "pi-agents-native-smoke-"));
+const root = await mkdtemp(join(tmpdir(), "pi-codex-agents-native-smoke-"));
 const deadline = setTimeout(() => { console.error("FAIL native smoke deadline (45s)"); process.exit(1); }, 45_000);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 async function until(check, label) {
@@ -48,7 +48,7 @@ const server = createServer(async (req, res) => {
 });
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const agentDir = join(root, "agent");
-const todoExtension = process.env.PI_AGENTS_TODO_EXTENSION;
+const todoExtension = process.env.PI_CODEX_AGENTS_TODO_EXTENSION;
 await mkdir(agentDir);
 await writeFile(join(agentDir, "settings.json"), JSON.stringify({ defaultProvider: "native-smoke", defaultModel: "native-smoke", quietStartup: true, tui: { mode: "fullscreen" }, ...(todoExtension ? { extensions: [todoExtension] } : {}) }));
 await writeFile(join(agentDir, "models.json"), JSON.stringify({ providers: { "native-smoke": {

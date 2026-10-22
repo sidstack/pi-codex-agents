@@ -1,9 +1,21 @@
-/** Pi 1.3.0 has cancellation signals for standard dialogs but not editor/custom.
+import { unsupportedContract } from "../pi-version.js";
+/** Find the extension editor that is opening now. Pi 1.3.x stores it in its own field,
+ * Pi 1.4.x pushes it on top of the dialog stack, so the newest answerable dialog wins. */
+function ownedEditor(native) {
+    const dialogs = [native.extensionEditor, ...(native.extensionDialogs ?? []).map((entry) => entry?.component)];
+    for (let index = dialogs.length - 1; index >= 0; index--) {
+        const dialog = dialogs[index];
+        if (dialog && typeof dialog.onCancelCallback === "function")
+            return dialog;
+    }
+    return undefined;
+}
+/** Supported Pi versions have cancellation signals for standard dialogs but not editor/custom.
  * Adapt only this owned mode instance, before its extension contexts are bound. */
 export function nativePromptCancellation(mode) {
     const native = mode;
     if (typeof native.createExtensionUIContext !== "function")
-        throw new Error("Unsupported Pi 1.3.0 prompt context contract");
+        throw new Error(unsupportedContract("extension prompt context"));
     const create = native.createExtensionUIContext.bind(native);
     const pending = new Set();
     let cancelling = 0;
@@ -19,7 +31,7 @@ export function nativePromptCancellation(mode) {
         const ui = create();
         for (const key of ["select", "confirm", "input", "editor", "custom"]) {
             if (typeof ui[key] !== "function")
-                throw new Error(`Unsupported Pi 1.3.0 prompt method: ${key}`);
+                throw new Error(unsupportedContract(`extension prompt method ${key}`));
         }
         return {
             ...ui,
@@ -30,9 +42,9 @@ export function nativePromptCancellation(mode) {
                 if (cancelling)
                     return Promise.resolve(undefined);
                 const result = ui.editor(title, prefill);
-                const editor = native.extensionEditor;
-                if (!editor || typeof editor.onCancelCallback !== "function")
-                    throw new Error("Unsupported Pi 1.3.0 extension editor cancellation contract");
+                const editor = ownedEditor(native);
+                if (!editor)
+                    throw new Error(unsupportedContract("extension editor cancellation"));
                 const cancel = () => editor.onCancelCallback();
                 pending.add(cancel);
                 return result.finally(() => pending.delete(cancel));

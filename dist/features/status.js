@@ -21,7 +21,7 @@ export const statusFeature = {
         const summary = statusParts(rows).join(" · ");
         const entry = host.config.commandCenterShortcut ? "Ctrl+G" : "/agents";
         for (const row of rows)
-            row.context?.ui.setStatus("pi-agents-native", `${summary} · ${entry}`);
+            row.context?.ui.setStatus("pi-codex-agents-native", `${summary} · ${entry}`);
     },
 };
 //# sourceMappingURL=status.js.map

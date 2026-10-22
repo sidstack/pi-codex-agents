@@ -1,5 +1,5 @@
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { loadConfig } from "./config.js";
+import { loadConfig, prepareAppDirectory } from "./config.js";
 import { commandCenterKey } from "./features/navigation.js";
 import { statusParts } from "./features/status.js";
 import { attachTerminal } from "./pi/attachment.js";
@@ -10,8 +10,11 @@ import { countUnsettled } from "./core/activity.js";
 export default function piAgents(pi) {
     // Managed sessions receive their own inline /agents extension. Loading the
     // installed package there must not register a second launcher recursively.
-    if (process.env.PI_AGENTS_NATIVE_DAEMON === "1")
+    if (process.env.PI_CODEX_AGENTS_NATIVE_DAEMON === "1" || process.env.PI_AGENTS_NATIVE_DAEMON === "1")
         return;
+    // State lived under the shorter `pi-agents` name before this package was renamed. Move it
+    // once, and tell the user what happened the first time a session has a UI to report to.
+    let stateNotice = prepareAppDirectory().notice ?? "";
     let opening = false;
     let prompts = 0;
     let frontendConfig;
@@ -191,6 +194,10 @@ export default function piAgents(pi) {
         catch (error) {
             report(ctx, error);
             return;
+        }
+        if (stateNotice) {
+            ctx.ui.notify(stateNotice, "info");
+            stateNotice = "";
         }
         removeInput = ctx.ui.onTerminalInput((data) => {
             if (opening)

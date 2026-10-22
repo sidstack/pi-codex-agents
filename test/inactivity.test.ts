@@ -53,16 +53,23 @@ describe("automatic session inactivity", () => {
     expect(row).toMatchObject({ activity: "failed", lastError: "disposal failed" });
   });
 
-  it("validates the configured idle timeout", () => {
-    const before = process.env.PI_AGENTS_IDLE_MS;
+  it("validates the configured idle timeout under either name", () => {
+    const before = process.env.PI_CODEX_AGENTS_IDLE_MS;
     try {
-      process.env.PI_AGENTS_IDLE_MS = "0";
+      process.env.PI_CODEX_AGENTS_IDLE_MS = "0";
       expect(loadConfig().idleTimeoutMs).toBe(0);
-      process.env.PI_AGENTS_IDLE_MS = "bad";
-      expect(() => loadConfig().idleTimeoutMs).toThrow("PI_AGENTS_IDLE_MS");
+      process.env.PI_CODEX_AGENTS_IDLE_MS = "bad";
+      expect(() => loadConfig().idleTimeoutMs).toThrow("PI_CODEX_AGENTS_IDLE_MS");
+      // The pre-rename name still works, and the renamed name wins when both are set.
+      process.env.PI_CODEX_AGENTS_IDLE_MS = "2000";
+      process.env.PI_AGENTS_IDLE_MS = "1500";
+      expect(loadConfig().idleTimeoutMs).toBe(2000);
+      delete process.env.PI_CODEX_AGENTS_IDLE_MS;
+      expect(loadConfig().idleTimeoutMs).toBe(1500);
     } finally {
-      if (before === undefined) delete process.env.PI_AGENTS_IDLE_MS;
-      else process.env.PI_AGENTS_IDLE_MS = before;
+      if (before === undefined) delete process.env.PI_CODEX_AGENTS_IDLE_MS;
+      else process.env.PI_CODEX_AGENTS_IDLE_MS = before;
+      delete process.env.PI_AGENTS_IDLE_MS;
     }
   });
 });

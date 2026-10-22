@@ -1,6 +1,6 @@
 # Security policy
 
-Pi >=1.3.0 <1.4.0 on Linux with Node 22.19+ is supported. Security fixes will
+Pi >=1.3.0 <1.5.0 on Linux with Node 22.19+ is supported (1.4.0 is the tested baseline). Security fixes will
 be released as updates become available.
 
 Report vulnerabilities privately through GitHub's Security → Report a vulnerability

@@ -56,20 +56,20 @@ describe("configuration", () => {
   });
 
   it("accepts a launch that reopens the directory's last session", () => {
-    const root = temporary(); mkdirSync(join(root, "pi-agents"));
-    writeFileSync(join(root, "pi-agents", "config.json"), '{"resumeLastSession":true}');
+    const root = temporary(); mkdirSync(join(root, "pi-codex-agents"));
+    writeFileSync(join(root, "pi-codex-agents", "config.json"), '{"resumeLastSession":true}');
     expect(loadConfig(root).resumeLastSession).toBe(true);
   });
 
   it("accepts a framed command center", () => {
-    const root = temporary(); mkdirSync(join(root, "pi-agents"));
-    writeFileSync(join(root, "pi-agents", "config.json"), '{"boardFullscreen":false}');
+    const root = temporary(); mkdirSync(join(root, "pi-codex-agents"));
+    writeFileSync(join(root, "pi-codex-agents", "config.json"), '{"boardFullscreen":false}');
     expect(loadConfig(root).boardFullscreen).toBe(false);
   });
 
   it.each([['{"historyImport":"false"}', "boolean"], ['{"unknown":true}', "Unknown"], ['{"idleTimeoutMs":-1}', "non-negative"], ['{"boardFullscreen":"yes"}', "boolean"], ['[]', "object"]])("rejects invalid config %s", (contents, error) => {
-    const root = temporary(); mkdirSync(join(root, "pi-agents"));
-    writeFileSync(join(root, "pi-agents", "config.json"), contents);
+    const root = temporary(); mkdirSync(join(root, "pi-codex-agents"));
+    writeFileSync(join(root, "pi-codex-agents", "config.json"), contents);
     expect(() => loadConfig(root)).toThrow(error);
   });
 });

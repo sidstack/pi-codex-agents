@@ -41,7 +41,7 @@ function fixture(event: { reason?: string } = {}) {
 // The launcher reads ambient Pi state and its own daemon marker, so each case
 // runs against an isolated agent directory instead of the developer's session.
 const managed: string[] = [];
-const ambient = ["PI_AGENTS_DIR", "PI_AGENTS_NATIVE_DIR", "PI_AGENTS_IDLE_MS", "PI_AGENTS_NATIVE_DAEMON"] as const;
+const ambient = ["PI_CODEX_AGENTS_DIR", "PI_AGENTS_DIR", "PI_CODEX_AGENTS_NATIVE_DIR", "PI_AGENTS_NATIVE_DIR", "PI_CODEX_AGENTS_IDLE_MS", "PI_AGENTS_IDLE_MS", "PI_CODEX_AGENTS_NATIVE_DAEMON", "PI_AGENTS_NATIVE_DAEMON", "PI_CODING_AGENT_DIR"] as const;
 const saved = new Map<string, string | undefined>();
 
 beforeEach(() => {
@@ -51,8 +51,9 @@ beforeEach(() => {
     if (!saved.has(name)) saved.set(name, process.env[name]);
     delete process.env[name];
   }
-  process.env.PI_AGENTS_DIR = root;
-  process.env.PI_AGENTS_NATIVE_DIR = join(root, "host");
+  process.env.PI_CODING_AGENT_DIR = root;
+  process.env.PI_CODEX_AGENTS_DIR = root;
+  process.env.PI_CODEX_AGENTS_NATIVE_DIR = join(root, "host");
 });
 
 afterEach(() => {
@@ -134,14 +135,14 @@ describe("Pi extension entry point", () => {
   });
 
   it("does not recursively install the launcher in managed runtimes", () => {
-    const previous = process.env.PI_AGENTS_NATIVE_DAEMON;
+    const previous = process.env.PI_CODEX_AGENTS_NATIVE_DAEMON;
     try {
-      process.env.PI_AGENTS_NATIVE_DAEMON = "1";
+      process.env.PI_CODEX_AGENTS_NATIVE_DAEMON = "1";
       const { api } = fixture();
       expect(api.registerCommand).not.toHaveBeenCalled();
     } finally {
-      if (previous === undefined) delete process.env.PI_AGENTS_NATIVE_DAEMON;
-      else process.env.PI_AGENTS_NATIVE_DAEMON = previous;
+      if (previous === undefined) delete process.env.PI_CODEX_AGENTS_NATIVE_DAEMON;
+      else process.env.PI_CODEX_AGENTS_NATIVE_DAEMON = previous;
     }
   });
 });
@@ -165,7 +166,7 @@ describe("launching Pi in a directory", () => {
   });
 
   it("stays in ordinary Pi at startup when autoAttach is off", async () => {
-    writeFileSync(join(process.env.PI_AGENTS_DIR!, "config.json"), JSON.stringify({ autoAttach: false }));
+    writeFileSync(join(process.env.PI_CODEX_AGENTS_DIR!, "config.json"), JSON.stringify({ autoAttach: false }));
     fixture({ reason: "startup" });
     await new Promise((done) => setTimeout(done, 50));
     expect(attach).not.toHaveBeenCalled();

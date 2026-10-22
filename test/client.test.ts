@@ -12,7 +12,7 @@ import { PROTOCOL_VERSION } from "../src/version.js";
 // ensureNativeConnection reads the daemon location from the environment, so every case
 // runs against an isolated host directory and a throwaway socket.
 const managed: string[] = [];
-const ambient = ["PI_AGENTS_DIR", "PI_AGENTS_NATIVE_DIR", "PI_AGENTS_IDLE_MS", "PI_AGENTS_NATIVE_DAEMON"] as const;
+const ambient = ["PI_CODEX_AGENTS_DIR", "PI_AGENTS_DIR", "PI_CODEX_AGENTS_NATIVE_DIR", "PI_AGENTS_NATIVE_DIR", "PI_CODEX_AGENTS_IDLE_MS", "PI_AGENTS_IDLE_MS", "PI_CODEX_AGENTS_NATIVE_DAEMON", "PI_AGENTS_NATIVE_DAEMON"] as const;
 const saved = new Map<string, string | undefined>();
 
 function temporary(): string {
@@ -96,7 +96,7 @@ function listenFakeHost(socketPath: string, answerStop: "refuse" | "drop"): Prom
 function isolatedHost(): { root: string; agentDir: string; socket: string; directory: string } {
   const root = temporary();
   const agentDir = join(root, "agent");
-  process.env.PI_AGENTS_NATIVE_DIR = join(root, "host");
+  process.env.PI_CODEX_AGENTS_NATIVE_DIR = join(root, "host");
   const paths = nativeDaemonPaths(agentDir);
   mkdirSync(paths.directory, { recursive: true });
   return { root, agentDir, socket: paths.socket, directory: paths.directory };

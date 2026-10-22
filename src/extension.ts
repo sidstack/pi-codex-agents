@@ -1,6 +1,6 @@
 import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { type TUI } from "@earendil-works/pi-tui";
-import { loadConfig, type Config } from "./config.js";
+import { loadConfig, prepareAppDirectory, type Config } from "./config.js";
 import type { Activity } from "./core/fleet.js";
 import { commandCenterKey } from "./features/navigation.js";
 import { statusParts } from "./features/status.js";
@@ -19,7 +19,10 @@ interface HostStatus {
 export default function piAgents(pi: ExtensionAPI): void {
   // Managed sessions receive their own inline /agents extension. Loading the
   // installed package there must not register a second launcher recursively.
-  if (process.env.PI_AGENTS_NATIVE_DAEMON === "1") return;
+  if (process.env.PI_CODEX_AGENTS_NATIVE_DAEMON === "1" || process.env.PI_AGENTS_NATIVE_DAEMON === "1") return;
+  // State lived under the shorter `pi-agents` name before this package was renamed. Move it
+  // once, and tell the user what happened the first time a session has a UI to report to.
+  let stateNotice = prepareAppDirectory().notice ?? "";
   let opening = false;
   let prompts = 0;
   let frontendConfig: Config | undefined;
@@ -164,6 +167,7 @@ export default function piAgents(pi: ExtensionAPI): void {
     if (ctx.mode !== "tui") return;
     let config;
     try { config = frontendConfig = Object.freeze(loadConfig(getAgentDir())); } catch (error) { report(ctx, error); return; }
+    if (stateNotice) { ctx.ui.notify(stateNotice, "info"); stateNotice = ""; }
     removeInput = ctx.ui.onTerminalInput((data) => {
       if (opening) return;
       const entry = commandCenterKey(config, data, ctx.ui.getEditorText() === "", prompts);
