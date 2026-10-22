@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0-fix-naming-reliability-beta.3](https://github.com/sidstack/pi-codex-agents/compare/v1.3.0-fix-naming-reliability-beta.2...v1.3.0-fix-naming-reliability-beta.3) (2026-10-22)
+
+### Bug Fixes
+
+* **naming:** stop reasoning models from returning an empty title ([365ec9f](https://github.com/sidstack/pi-codex-agents/commit/365ec9f32dc783717688d66d99d18001ab831127))
+
 ## [1.3.0-fix-naming-reliability-beta.2](https://github.com/sidstack/pi-codex-agents/compare/v1.3.0-fix-naming-reliability-beta.1...v1.3.0-fix-naming-reliability-beta.2) (2026-10-22)
 
 ### Bug Fixes
