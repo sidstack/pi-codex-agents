@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.0](https://github.com/sidstack/pi-codex-agents/compare/v1.1.0...v1.2.0) (2026-10-22)
+
+### Features
+
+* support Pi 1.4 and name the package everywhere ([2986255](https://github.com/sidstack/pi-codex-agents/commit/298625504d48446b4fac393bc166fb2dde33f31b))
+
 ## [1.2.0-feat-pi-1-4-support-beta.1](https://github.com/sidstack/pi-codex-agents/compare/v1.1.0...v1.2.0-feat-pi-1-4-support-beta.1) (2026-10-22)
 
 ### Features
