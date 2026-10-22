@@ -100,12 +100,18 @@ Restart safety is decided per runtime: each session tracks its own `running` fla
 own count of pending prompts independently. A restart asks for confirmation when any
 session reports a run in flight or a pending prompt, and aborts only those runs.
 
-New sessions start with the directory name. After the first completed run, `autoName`
-(default `true`) asks the selected model for a short title using at most the first 2,000
-characters of the first message. This is one extra provider request (up to 96 output tokens,
-15 seconds), so normal provider billing applies. It adds no conversation turn, runs only
-when the fleet is settled, and cancels when new work starts. Home and `/name` titles are
-preserved. Set `autoName: false` to keep directory names without extra requests.
+New sessions start with the directory name until they have a first message. `autoName`
+(default `true`) then names them in two steps: an instant extractive label from the first
+message, followed by one model request for a short title (at most the first 2,000 characters
+of that message, up to 96 output tokens, 15 seconds). The model request waits for the session's
+first completed turn, or starts immediately when the first message is longer than 2,000
+characters. It adds no conversation turn and follows normal provider billing. A failed or
+cancelled request is retried up to three times, 30 seconds apart; after that the extractive
+label stays and one notice reports the reason. Requests are independent per session, so other
+sessions starting work never cancel a pending title. Set `nameModel` to a `"provider/id"` model
+to title with a cheaper model than the session's own; a missing or unauthenticated reference
+stops the requests with a notice and keeps the extractive label. Names set with `/name` always
+win, in Home as elsewhere. Set `autoName: false` to keep directory names without any requests.
 
 History discovery caches unchanged metadata and skips managed files before reading.
 Each scan is limited to 10,000 directory entries, 32 MiB total input, 2 MiB per file,
@@ -131,6 +137,7 @@ Create `~/.pi/agent/pi-codex-agents/config.json` to override these defaults:
 ```json
 {
   "autoName": true,
+  "nameModel": "",
   "historyImport": true,
   "autoAttach": true,
   "resumeLastSession": false,

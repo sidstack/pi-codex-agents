@@ -118,6 +118,12 @@ export class NativeSessionHost extends NativeFleet {
             for (const feature of this.features)
                 feature.settled?.(this, record, ctx);
     }
+    /** A finalized transcript message, after native persistence, so features may read it back from history. */
+    messageEnd(record, ctx, message) {
+        if (!this.closing)
+            for (const feature of this.features)
+                feature.messageEnd?.(this, record, ctx, message);
+    }
     async cycle(direction) {
         const rows = [...this.sessions.values()].filter(isNavigable);
         if (rows.length < 2)
@@ -676,10 +682,11 @@ function install(pi, host, record) {
     pi.on("session_start", (_event, ctx) => { host.bind(record, ctx); });
     pi.on("session_info_changed", (_event, ctx) => { host.bind(record, ctx); });
     pi.on("agent_start", () => { host.event(record, "start"); });
-    pi.on("message_end", (event) => {
+    pi.on("message_end", (event, ctx) => {
         if (event.message.role === "assistant" && event.message.stopReason === "error") {
             host.fail(record, event.message.errorMessage || "Agent run failed; see the native transcript");
         }
+        host.messageEnd(record, ctx, event.message);
     });
     pi.on("agent_settled", (_event, ctx) => { host.settled(record, ctx); });
     pi.on("ui_prompt_start", (event) => {

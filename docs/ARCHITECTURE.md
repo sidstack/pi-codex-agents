@@ -166,10 +166,13 @@ unreachable keeps its failed row and reports the reason when it is opened.
 Optional behavior implements `SessionFeature` in `src/features/contracts.ts`.
 `configuredFeatures` is the single assembly point. The core accepts a feature list
 and imports only its type contract; it never imports concrete feature modules.
-Features use public core operations and do not depend on each other:
+Features use public core operations and do not depend on each other. The core delivers
+lifecycle events and finalized transcript messages (`settled`, `messageEnd`) to features
+after its own state and native persistence already hold them:
 
 | Feature | Responsibility | Configuration |
 | --- | --- | --- |
+| Naming | Label unnamed sessions and refine the label with one bounded title request | `autoName`, `nameModel` |
 | History | Read ordinary Pi histories and add inactive entries | `historyImport` |
 | Navigation | Extra entry keys and live view cycling | `leftArrowEntry`, `commandCenterShortcut`, `sessionCycling` |
 | Status | Native status line counts | `showStatus` |
@@ -181,10 +184,14 @@ feature list, core creation, navigation through `/agents`, managed restoration,
 terminal ownership, and explicit stop remain available. No dynamic code loading or
 new third-party plugin system is introduced.
 
-The optional naming feature listens only to new `agent_settled` events, never restoration.
-It queues one bounded title request through the context's public model registry, owns its
-abort controller and timeout, and cancels on new work or host close. Native manual names
-are checked before and after generation. No agent prompt or tool execution is used.
+The optional naming feature listens only to new user messages and `agent_settled` events,
+never restoration. It first writes a deterministic extractive label with the native
+`setSessionName` operation, then queues one bounded title request per session through the
+context's public model registry, optionally on the configured `nameModel` instead of the
+session's own model. Each request owns its abort controller and timeout, is retried a bounded
+number of times with a delay, and is cancelled only by its own session's disposal or host
+close; other sessions starting work never cancel it. Native manual names are checked before
+and after generation. No agent prompt or tool execution is used.
 
 History discovery uses one scanner per feature/host. Cache keys include canonical
 path, mtime and size; managed files are excluded before parsing. Streaming reads

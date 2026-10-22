@@ -6,7 +6,7 @@ import {
   createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices,
   getPackageDir, hasTrustRequiringProjectResources, InteractiveMode, ProjectTrustStore, SessionManager, SettingsManager,
   type AgentSessionRuntime, type CreateAgentSessionRuntimeFactory, type ExtensionAPI,
-  type ExtensionContext,
+  type ExtensionContext, type MessageEndEvent,
 } from "@earendil-works/pi-coding-agent";
 import { type Terminal, type TUI } from "@earendil-works/pi-tui";
 import { CommandCenter, commandCenterSize, type BoardAction } from "../ui/board.js";
@@ -144,6 +144,11 @@ export class NativeSessionHost extends NativeFleet {
   settled(record: Session, ctx: ExtensionContext): void {
     this.event(record, "settled");
     if (!this.closing) for (const feature of this.features) feature.settled?.(this, record, ctx);
+  }
+
+  /** A finalized transcript message, after native persistence, so features may read it back from history. */
+  messageEnd(record: Session, ctx: ExtensionContext, message: MessageEndEvent["message"]): void {
+    if (!this.closing) for (const feature of this.features) feature.messageEnd?.(this, record, ctx, message);
   }
 
   async cycle(direction: number): Promise<void> {
@@ -594,10 +599,11 @@ function install(pi: ExtensionAPI, host: NativeSessionHost, record: Session): vo
   pi.on("session_start", (_event, ctx) => { host.bind(record, ctx); });
   pi.on("session_info_changed", (_event, ctx) => { host.bind(record, ctx); });
   pi.on("agent_start", () => { host.event(record, "start"); });
-  pi.on("message_end", (event) => {
+  pi.on("message_end", (event, ctx) => {
     if (event.message.role === "assistant" && event.message.stopReason === "error") {
       host.fail(record, event.message.errorMessage || "Agent run failed; see the native transcript");
     }
+    host.messageEnd(record, ctx, event.message);
   });
   pi.on("agent_settled", (_event, ctx) => { host.settled(record, ctx); });
   pi.on("ui_prompt_start", (event) => {

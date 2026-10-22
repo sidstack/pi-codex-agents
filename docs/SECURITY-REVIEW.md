@@ -72,7 +72,9 @@ bounded cached history discovery, and failure reporting for unexpected socket lo
 The release checks exercise these regressions with focused lifecycle tests and native
 integration fixtures. A socket loss does not prove the host is alive.
 
-Automatic naming sends up to 2,000 characters of the first message to the selected
-provider in one additional request, subject to normal provider billing/trust. It
-adds no tool execution, is cancelled during new work and host close, and can be
-disabled with `autoName: false`. No credentials are copied into session metadata.
+Automatic naming labels a session from its first message locally, then sends up to 2,000
+characters of that message to the selected provider, or to the configured `nameModel`, in at
+most three bounded requests per session, subject to normal provider billing/trust. It
+adds no tool execution, is cancelled only by that session's own disposal or host close, and
+can be disabled with `autoName: false`. The stored label is a short session-name entry, the
+same native metadata `/name` writes. No credentials are copied into session metadata.
