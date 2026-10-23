@@ -5,6 +5,7 @@ import type { Activity } from "./core/fleet.js";
 import { commandCenterKey } from "./features/navigation.js";
 import { statusParts } from "./features/status.js";
 import { attachTerminal, type AttachOptions } from "./pi/attachment.js";
+import { launchedHistory } from "./pi/launch-history.js";
 import { ensureNativeConnection, stopNativeHost } from "./pi/client.js";
 import { VERSION, BUILD_ID } from "./version.js";
 import { countUnsettled, type ActivitySnapshot } from "./core/activity.js";
@@ -39,6 +40,8 @@ export default function piAgents(pi: ExtensionAPI): void {
     let failure: unknown;
     let notice = "";
     let launchError = "";
+    let launchNotice = "";
+    let hostCapabilities: readonly string[] | undefined;
     let quitFrontend = false;
     let restartHost = false;
     try {
@@ -50,6 +53,8 @@ export default function piAgents(pi: ExtensionAPI): void {
               const result = await attachTerminal(connection, tui.terminal, options);
               notice = result.reason;
               launchError = result.launchError ?? "";
+              launchNotice = result.launchNotice ?? "";
+              hostCapabilities = result.hostCapabilities;
               quitFrontend = result.quitFrontend;
               restartHost = result.restartHost;
             } catch (error) { failure = error; }
@@ -68,6 +73,12 @@ export default function piAgents(pi: ExtensionAPI): void {
     if (failure) throw failure;
     if (notice) ctx.ui.notify(notice, "info");
     if (launchError) ctx.ui.notify(launchError, "error");
+    if (launchNotice) ctx.ui.notify(launchNotice, "info");
+    // A host from before this build ignores the named history and answers with a session for the
+    // directory, which is exactly the surprise the named history exists to avoid. Say so.
+    if (options.launchSessionFile && !hostCapabilities?.includes("launchSessionFile")) {
+      ctx.ui.notify("The session your Pi launched needs a newer agent host: it opened a session for this directory instead. Run /agents restart to start the current build.", "warning");
+    }
     if (connection.hostNotice) ctx.ui.notify(connection.hostNotice, "info");
     // A managed view owns no process terminal. When the host chose to quit, Pi's own
     // orderly shutdown ends the frontend after the terminal has been restored.
@@ -96,14 +107,25 @@ export default function piAgents(pi: ExtensionAPI): void {
     } finally { opening = false; }
   };
 
-  /** Launching Pi in a directory attaches it to a session for that directory: a new one, or its last one with resumeLastSession. */
+  /**
+   * Launching Pi in a directory attaches it to a session for that directory: a new one, or its last
+   * one with resumeLastSession. A launch that already opened a history - `pi --session <id>`, `-c`,
+   * `-r`, `--fork` - names that history instead, so the terminal lands in the session the user asked
+   * for rather than a new one beside it.
+   */
   const attachLaunchSession = (ctx: ExtensionContext): void => {
     if (!launchPending || launchAttached || opening) return;
     // A startup dialog belongs to ordinary Pi. Wait for it instead of covering it.
     if (prompts > 0) return;
     launchPending = false;
     launchAttached = true;
-    void open(ctx, { openBoard: false, launchCwd: ctx.cwd }).catch((error) => report(ctx, error));
+    const history = launchedHistory(ctx);
+    void open(ctx, {
+      openBoard: false,
+      launchCwd: ctx.cwd,
+      // Renamed for the attach protocol: the host reads a launch as a session file plus its id.
+      ...(history ? { launchSessionFile: history.sessionFile, ...(history.sessionId ? { launchSessionId: history.sessionId } : {}) } : {}),
+    }).catch((error) => report(ctx, error));
   };
 
   const report = (ctx: ExtensionContext, error: unknown) => ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");

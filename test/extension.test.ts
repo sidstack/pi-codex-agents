@@ -20,8 +20,14 @@ function fixture(event: { reason?: string } = {}) {
   };
   let listener: ((data: string) => unknown) | undefined;
   const tui = { start: vi.fn(), stop: vi.fn(), requestRender: vi.fn(), terminal: {} };
+  const sessionManager = {
+    // A plain launch opens an empty history: no leaf entry, so the directory decides.
+    getLeafEntry: vi.fn(() => undefined),
+    getSessionFile: vi.fn((): string | undefined => "/tmp/agent/sessions/--tmp-project--/01FRESH.jsonl"),
+    getSessionId: vi.fn((): string | undefined => "01FRESH"),
+  };
   const ctx = {
-    cwd: "/tmp/project", hasUI: true, mode: "tui",
+    cwd: "/tmp/project", hasUI: true, mode: "tui", sessionManager,
     ui: {
       getEditorText: vi.fn(() => ""), notify: vi.fn(),
       confirm: vi.fn(async () => false),
@@ -35,7 +41,7 @@ function fixture(event: { reason?: string } = {}) {
   attach.mockResolvedValue({ reason: "Returned to Pi", quitFrontend: false });
   extension(api as unknown as ExtensionAPI);
   handlers.get("session_start")?.(event, ctx);
-  return { api, commands, ctx, tui, socket, key: (data: string) => listener?.(data), handlers };
+  return { api, commands, ctx, tui, socket, sessionManager, key: (data: string) => listener?.(data), handlers };
 }
 
 // The launcher reads ambient Pi state and its own daemon marker, so each case
@@ -43,10 +49,15 @@ function fixture(event: { reason?: string } = {}) {
 const managed: string[] = [];
 const ambient = ["PI_CODEX_AGENTS_DIR", "PI_AGENTS_DIR", "PI_CODEX_AGENTS_NATIVE_DIR", "PI_AGENTS_NATIVE_DIR", "PI_CODEX_AGENTS_IDLE_MS", "PI_AGENTS_IDLE_MS", "PI_CODEX_AGENTS_NATIVE_DAEMON", "PI_AGENTS_NATIVE_DAEMON", "PI_CODING_AGENT_DIR"] as const;
 const saved = new Map<string, string | undefined>();
+// The launcher reads the command line to tell a resumed launch from a fresh one, so each case
+// runs against a known argv instead of the one Vitest was started with.
+let savedArgv: string[] | undefined;
 
 beforeEach(() => {
   const root = mkdtempSync(join(tmpdir(), "pi-extension-test-"));
   managed.push(root);
+  savedArgv ??= process.argv;
+  process.argv = ["node", "pi"];
   for (const name of ambient) {
     if (!saved.has(name)) saved.set(name, process.env[name]);
     delete process.env[name];
@@ -57,6 +68,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  if (savedArgv) process.argv = savedArgv;
+  savedArgv = undefined;
   for (const name of ambient) {
     const value = saved.get(name);
     if (value === undefined) delete process.env[name];
@@ -176,6 +189,58 @@ describe("launching Pi in a directory", () => {
     attach.mockResolvedValueOnce({ reason: "Returned to Pi.", quitFrontend: false, launchError: "Could not open a session for /tmp/project: Not a directory" });
     const { ctx } = fixture({ reason: "startup" });
     await vi.waitFor(() => expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("Could not open a session"), "error"));
+  });
+
+  it("names the history a resumed launch opened instead of asking for a new session", async () => {
+    fixture({ reason: "startup" });
+    process.argv = ["node", "pi", "--session", "01ABC"];
+    await vi.waitFor(() => expect(attach).toHaveBeenCalledOnce());
+
+    expect(attach).toHaveBeenCalledWith(expect.anything(), expect.anything(), {
+      openBoard: false,
+      launchCwd: "/tmp/project",
+      launchSessionFile: "/tmp/agent/sessions/--tmp-project--/01FRESH.jsonl",
+      launchSessionId: "01FRESH",
+    });
+  });
+
+  it("names the opened history even when no launch flag reveals the resume", async () => {
+    const { ctx, sessionManager, handlers } = fixture();
+    vi.mocked(sessionManager.getLeafEntry).mockReturnValue({ id: "an-entry" } as never);
+    handlers.get("session_start")?.({ reason: "startup" }, ctx);
+    await vi.waitFor(() => expect(attach).toHaveBeenCalledOnce());
+
+    expect(attach.mock.calls[0]![2]).toMatchObject({ launchSessionFile: "/tmp/agent/sessions/--tmp-project--/01FRESH.jsonl" });
+  });
+
+  it("keeps the directory launch when the launched Pi holds no history file", async () => {
+    const { sessionManager } = fixture({ reason: "startup" });
+    process.argv = ["node", "pi", "--session", "01ABC"];
+    vi.mocked(sessionManager.getSessionFile).mockReturnValue(undefined);
+    await vi.waitFor(() => expect(attach).toHaveBeenCalledOnce());
+
+    expect(attach).toHaveBeenCalledWith(expect.anything(), expect.anything(), { openBoard: false, launchCwd: "/tmp/project" });
+  });
+
+  it("says when a host from before this build ignored the named history", async () => {
+    attach.mockResolvedValueOnce({ reason: "Returned to Pi.", quitFrontend: false, hostCapabilities: ["settledStop", "safeUpdate"] });
+    const { ctx } = fixture({ reason: "startup" });
+    process.argv = ["node", "pi", "-c"];
+    await vi.waitFor(() => expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("needs a newer agent host"), "warning"));
+  });
+
+  it("says when a host that advertises nothing at all ignored the named history", async () => {
+    attach.mockResolvedValueOnce({ reason: "Returned to Pi.", quitFrontend: false });
+    const { ctx } = fixture({ reason: "startup" });
+    process.argv = ["node", "pi", "--session", "01ABC"];
+    await vi.waitFor(() => expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("needs a newer agent host"), "warning"));
+  });
+
+  it("reports the session the host opened for the named history", async () => {
+    attach.mockResolvedValueOnce({ reason: "Returned to Pi.", quitFrontend: false, launchNotice: "Took over the launched history 01ABC as the managed session project." });
+    const { ctx } = fixture({ reason: "startup" });
+    process.argv = ["node", "pi", "--session", "01ABC"];
+    await vi.waitFor(() => expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("Took over the launched history 01ABC"), "info"));
   });
 
   it("keeps manual /agents opening the command center", async () => {

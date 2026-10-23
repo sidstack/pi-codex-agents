@@ -25,7 +25,10 @@ with tempfile.TemporaryDirectory(prefix="pi-codex-agents-launch-") as temp:
     # The default is autoAttach: true. This harness leaves it at the default on purpose.
     env = {**os.environ, "PI_CODING_AGENT_DIR": str(agent), "PI_CODEX_AGENTS_NATIVE_DIR": str(root / "host"),
            "PI_CODEX_AGENTS_IDLE_MS": "0", "PI_OFFLINE": "1", "TERM": "xterm-256color"}
-    env.pop("PI_CODEX_AGENTS_NATIVE_DAEMON", None)
+    # Smoke runs launch real Pi frontends. A marker inherited from a session that is
+    # already managed would make the extension stay out of the way.
+    for marker in ("PI_CODEX_AGENTS_NATIVE_DAEMON", "PI_AGENTS_NATIVE_DAEMON"):
+        env.pop(marker, None)
 
     cli = Path(os.environ.get("PI_CODEX_AGENTS_TEST_PI_CLI", str(repo / "node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js")))
     args = ["node", str(cli), "-e", str(repo / "dist/extension.js")]
@@ -70,18 +73,31 @@ with tempfile.TemporaryDirectory(prefix="pi-codex-agents-launch-") as temp:
         os.write(master, data.encode())
         read_for(.2)
 
-    def launch(cwd):
+    def launch(cwd, extra=()):
         global master, output
         if master is not None:
             os.close(master)
         master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))
-        child = subprocess.Popen(args, cwd=cwd, stdin=slave, stdout=slave, stderr=slave, env=env, start_new_session=True)
+        child = subprocess.Popen([*args, *extra], cwd=cwd, stdin=slave, stdout=slave, stderr=slave, env=env, start_new_session=True)
         os.close(slave)
         children.append(child)
         output = bytearray()
         read_for(3)
         return child
+
+    def stop_frontend():
+        """Leave the managed view, then wait until the host has released its terminal."""
+        mark = len(output)
+        send("\x1a")
+        expect("Leave command center?", mark)
+        send("\r")
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            if control("status").get("attached") is False:
+                return
+            time.sleep(.2)
+        raise AssertionError("the previous frontend never released the host terminal")
 
     def foreground(state):
         return next(row for row in state["sessions"] if row["id"] == state["activeId"])
@@ -139,6 +155,33 @@ with tempfile.TemporaryDirectory(prefix="pi-codex-agents-launch-") as temp:
         draft = root / "host" / "drafts" / f"{hashlib.sha256(first_id.encode()).hexdigest()}.json"
         assert draft.is_file() and "keep me" in draft.read_text(), f"the older session draft was not retained: {draft}"
         print("PASS launch: relaunching a directory gets a new session and history, keeping the older one")
+
+        # Launching Pi on a history it names, rather than on a bare directory, shows that session.
+        # The Pi id is the suffix of its history file name, exactly as the user would type it.
+        stop_frontend()
+        resumed_id = Path(first_file).stem.split("_")[-1]
+        launch(alpha, ["--session", resumed_id])
+        expect("sessions 3 ·")
+        state = control("status")
+        current = foreground(state)
+        assert len(state["sessions"]) == 3, state["sessions"]
+        assert current["id"] == first_id, f"launching a named history must show that session, not a new one: {current}"
+        assert current["sessionFile"] == first_file, (current["sessionFile"], first_file)
+        draft = root / "host" / "drafts" / f"{hashlib.sha256(first_id.encode()).hexdigest()}.json"
+        assert draft.is_file() and "keep me" in draft.read_text(), f"the resumed session lost its draft: {draft}"
+        print("PASS launch: pi --session <id> shows that session with its history and draft")
+
+        # Continuing the directory reopens a session already in the command center instead of
+        # adding a fourth, and never asks the running one to start over.
+        stop_frontend()
+        launch(alpha, ["--continue"])
+        expect("sessions 3 ·")
+        state = control("status")
+        current = foreground(state)
+        assert len(state["sessions"]) == 3, state["sessions"]
+        assert current["cwd"] == str(alpha), current
+        assert any(row["id"] == first_id for row in state["sessions"]), state["sessions"]
+        print("PASS launch: pi --continue reopens a session for the directory instead of adding one")
     finally:
         try:
             control("stop")
