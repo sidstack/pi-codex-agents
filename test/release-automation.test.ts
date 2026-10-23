@@ -100,7 +100,7 @@ describe("release automation", () => {
     expect(pkg.publishConfig.tag).toBeUndefined();
   });
 
-  it("audits the full dependency tree with one expiring advisory exception", () => {
+  it("audits the full dependency tree with expiring advisory exceptions", () => {
     expect(pkg.scripts["audit:ci"]).toBe("audit-ci --config ./audit-ci.json");
     expect(auditConfig.moderate).toBe(true);
     // `skip-dev` (audit-ci) or `--production` would hide the release toolchain, which is where
@@ -112,15 +112,22 @@ describe("release automation", () => {
     // production dependencies, so a production-only audit could never fail this gate.
     for (const name of ["semantic-release", "@semantic-release/npm", "audit-ci"]) expect(pkg.devDependencies[name]).toBeDefined();
     expect(pkg.dependencies).toBeUndefined();
-    expect(auditConfig.allowlist).toHaveLength(1);
-    const [record] = auditConfig.allowlist;
-    const exception = record?.["GHSA-vfj7-8cjw-p6xm"];
-    expect(Object.keys(record ?? {})).toEqual(["GHSA-vfj7-8cjw-p6xm"]);
-    expect(exception?.active).toBe(true);
-    expect(exception?.expiry).toBe("2026-11-20");
-    const notes = exception?.notes ?? "";
-    expect(notes.toLowerCase()).toContain("no fixed version");
-    expect(notes).toContain("dev-only");
+    expect(auditConfig.allowlist).toHaveLength(2);
+    const advisories = ["GHSA-vfj7-8cjw-p6xm", "GHSA-rxp7-6hxx-x8q5"];
+    expect(auditConfig.allowlist.map((record) => Object.keys(record))).toEqual(advisories.map((advisory) => [advisory]));
+    for (const advisory of advisories) {
+      const record = auditConfig.allowlist.find((entry) => entry[advisory]);
+      const exception = record?.[advisory];
+      expect(Object.keys(record ?? {})).toEqual([advisory]);
+      expect(exception?.active).toBe(true);
+      expect(exception?.expiry).toBe("2026-11-20");
+      const notes = exception?.notes ?? "";
+      expect(notes).toContain(advisory);
+      expect(notes.toLowerCase()).toContain("dev-only");
+      // Every exception has to name the dependency path it covers and how to retire it.
+      expect(notes).toContain("semantic-release");
+      expect(notes.toLowerCase()).toContain("review before 2026-11-20");
+    }
     for (const file of [ciWorkflow, workflow]) {
       expect(file).toContain("npm run audit:ci");
       expect(file).not.toContain("npm audit");

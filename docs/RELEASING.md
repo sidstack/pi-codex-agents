@@ -101,19 +101,36 @@ moderate, high or critical advisory that is not explicitly allowlisted, so a new
 advisory in any dependency, including dev-only ones, breaks the gate. Both the CI
 workflow and the publish workflow run it in their `check` job after `npm ci`.
 
-The allowlist holds exactly one record, `GHSA-vfj7-8cjw-p6xm` (`braces` <=3.0.3,
+The allowlist holds one record per accepted exception and nothing else. Each record
+is an advisory id with `active: true`, an `expiry`, and a justification naming the
+only dependency path in this repository. Today that is two records:
+`GHSA-rxp7-6hxx-x8q5` (`ip-address` <=10.7.3, quadratic-time `Address6` zone-id match
+that lets one very long string stall the process) and `GHSA-vfj7-8cjw-p6xm`
+(`braces` <=3.0.3, described below).
+
+The `ip-address` finding reaches this repository only as
+`semantic-release` -> `@semantic-release/npm` -> `npm@^11.6.2` -> the copy bundled at
+`node_modules/npm/node_modules/ip-address`. `ip-address@10.7.4` fixes it upstream, but
+every npm release that `@semantic-release/npm` accepts (including the newest npm 11 and
+npm 12) still bundles `10.7.2`, and npm ignores `overrides` for its own bundled
+dependencies, so no range or lockfile change resolves it. The record expires
+`2026-11-20`: when an acceptable npm release bundles `ip-address` >=10.7.4, run
+`npm update npm`, confirm the audit is clean, and delete the record.
+
+The allowlist holds one further record, `GHSA-vfj7-8cjw-p6xm` (`braces` <=3.0.3,
 stack exhaustion when expanding deeply nested brace patterns). No fixed version of
 `braces` has been published, so no dependency range resolves around it. The only
 path in this repository is the dev-only release toolchain
 `semantic-release` -> `@semantic-release/commit-analyzer` -> `micromatch` ->
 `braces`; the project never expands untrusted glob patterns and devDependencies are
-not part of the published npm archive. The record carries that justification and an
-`expiry` of `2026-11-20`: audit-ci treats an expired record as inactive, so the gate
-starts failing on that advisory after the review date. Before then, check whether
+not part of the published npm archive. The record carries that justification and the
+same `expiry` of `2026-11-20`: audit-ci treats an expired record as inactive, so the
+gate starts failing on that advisory after the review date. Before then, check whether
 `braces` published a fix or whether `micromatch`/`semantic-release` dropped the
 dependency, upgrade, and delete the record; if the exception is still needed,
-re-justify it and move the date. Never widen the allowlist to a whole module, a
-package family, or a severity level.
+re-justify it and move the date. Audit-ci still prints a warning naming an allowlisted
+advisory it found, so a suppressed finding stays visible in the job log. Never widen
+the allowlist to a whole module, a package family, or a severity level.
 
 ## First automated release
 

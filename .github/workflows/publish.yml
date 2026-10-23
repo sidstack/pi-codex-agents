@@ -34,9 +34,10 @@ jobs:
         run: |
           git diff --exit-code -- dist
           test -z "$(git ls-files --others --exclude-standard dist)"
-      # Full dependency audit (production and dev tree) with one documented exception in
-      # audit-ci.json: the dev-only release toolchain depends on braces, whose high advisory
-      # GHSA-vfj7-8cjw-p6xm has no published fix. Any other finding at moderate or above fails.
+      # Full dependency audit (production and dev tree) with documented exceptions in
+      # audit-ci.json: dev-only release-toolchain advisories with no obtainable fix, braces
+      # GHSA-vfj7-8cjw-p6xm and the npm-bundled ip-address GHSA-rxp7-6hxx-x8q5, each expiring
+      # 2026-11-20. Any other finding at moderate or above fails. See docs/RELEASING.md.
       - run: npm run audit:ci
   release:
     name: Release and publish
