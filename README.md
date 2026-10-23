@@ -7,6 +7,9 @@ while you view another session or close your terminal.
 Install the published package with Pi's package manager. See
 [release instructions](docs/RELEASING.md) for maintainer details.
 
+> Independent community project, not affiliated with, endorsed by, or produced by
+> OpenAI. See [trademarks and affiliation](docs/TRADEMARKS.md).
+
 ## Install
 
 Requires Linux, Node 22.19+, and Pi **>=1.3.0 <1.5.0**; 1.4.0 is the tested baseline.
@@ -316,3 +319,8 @@ and dependency boundaries are in [CONTRIBUTING.md](CONTRIBUTING.md) and
 [architecture](docs/ARCHITECTURE.md). Generated `dist/` is shipped
 for Git installs without a compiler. Run `npm run release:check` for the full
 installed-package check. See [security](SECURITY.md) for trust boundaries.
+
+## Credits and trademarks
+
+The session UX draws inspiration from OpenAI Codex's agent dashboard. Codex is a
+trademark of OpenAI OpCo, LLC. See [trademarks and affiliation](docs/TRADEMARKS.md).

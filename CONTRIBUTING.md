@@ -35,4 +35,10 @@ bug reports. Never include auth files, real conversations, or private host logs.
 Discuss API or dependency changes before implementation. Treat other contributors
 respectfully; focus reviews on code and observable behavior.
 
+## Trademarks and affiliation
+
+Keep branding accurate and avoid wording or artwork that implies OpenAI authorship,
+sponsorship, or endorsement. Do not copy OpenAI logos or marketing materials. Keep
+[the affiliation notice](docs/TRADEMARKS.md) accurate as the project changes.
+
 See [release instructions](docs/RELEASING.md) for publication requirements.
