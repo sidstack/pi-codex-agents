@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.3.0-fix-naming-reliability-beta.4](https://github.com/sidstack/pi-codex-agents/compare/v1.3.0-fix-naming-reliability-beta.3...v1.3.0-fix-naming-reliability-beta.4) (2026-10-22)
+
+### Bug Fixes
+
+* **naming:** widen the title budget and report empty model answers ([ad40e82](https://github.com/sidstack/pi-codex-agents/commit/ad40e821746cbaffae0a56d4d8d0a3ab394deb4f))
+
+## [1.3.0-fix-naming-reliability-beta.3](https://github.com/sidstack/pi-codex-agents/compare/v1.3.0-fix-naming-reliability-beta.2...v1.3.0-fix-naming-reliability-beta.3) (2026-10-22)
+
+### Bug Fixes
+
+* **naming:** stop reasoning models from returning an empty title ([365ec9f](https://github.com/sidstack/pi-codex-agents/commit/365ec9f32dc783717688d66d99d18001ab831127))
+
+## [1.3.0-fix-naming-reliability-beta.2](https://github.com/sidstack/pi-codex-agents/compare/v1.3.0-fix-naming-reliability-beta.1...v1.3.0-fix-naming-reliability-beta.2) (2026-10-22)
+
+### Bug Fixes
+
+* **naming:** label the session from the message event and time out hung requests ([5f6e34d](https://github.com/sidstack/pi-codex-agents/commit/5f6e34da8df515cffd6bf27ba20fbeb7ef9b7bcb))
+
+## [1.3.0-fix-naming-reliability-beta.1](https://github.com/sidstack/pi-codex-agents/compare/v1.2.0...v1.3.0-fix-naming-reliability-beta.1) (2026-10-22)
+
+### Features
+
+* **naming:** label sessions immediately and retry title requests ([827c696](https://github.com/sidstack/pi-codex-agents/commit/827c696fdc3214e916af5ab8e8ac20e955cd6bae))
+
 ## [1.2.0](https://github.com/sidstack/pi-codex-agents/compare/v1.1.0...v1.2.0) (2026-10-22)
 
 ### Features

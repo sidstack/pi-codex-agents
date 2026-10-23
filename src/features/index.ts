@@ -9,7 +9,7 @@ import { statusFeature } from "./status.js";
 /** One assembly point; optional features never import each other. */
 export function configuredFeatures(config: Readonly<Config>): SessionFeature[] {
   return [
-    ...(config.autoName ? [createNamingFeature()] : []),
+    ...(config.autoName ? [createNamingFeature({ nameModel: config.nameModel })] : []),
     ...(config.historyImport ? [createHistoryFeature()] : []),
     ...(config.autoInactive ? [inactivityFeature] : []),
     ...(config.commandCenterShortcut || config.leftArrowEntry || config.sessionCycling ? [navigationFeature] : []),

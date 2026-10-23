@@ -49,6 +49,12 @@ describe("state directory naming", () => {
     mkdirSync(join(agent, APP_DIR_NAME));
     writeFileSync(join(agent, APP_DIR_NAME, "config.json"), '{"boardFullscreen":false}');
     expect(loadConfig(agent).boardFullscreen).toBe(false);
+    writeFileSync(join(agent, APP_DIR_NAME, "config.json"), '{"nameModel":"acme/tiny"}');
+    expect(loadConfig(agent).nameModel).toBe("acme/tiny");
+    writeFileSync(join(agent, APP_DIR_NAME, "config.json"), '{"nameModel":""}');
+    expect(loadConfig(agent).nameModel).toBe("");
+    writeFileSync(join(agent, APP_DIR_NAME, "config.json"), '{"nameModel":"tiny"}');
+    expect(() => loadConfig(agent)).toThrow("nameModel must be empty");
     writeFileSync(join(agent, APP_DIR_NAME, "config.json"), '{"unknown":true}');
     expect(() => loadConfig(agent)).toThrow("Unknown pi-codex-agents config option");
     writeFileSync(join(agent, APP_DIR_NAME, "config.json"), "[1]");

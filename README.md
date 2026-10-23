@@ -27,7 +27,10 @@ pi install npm:pi-codex-agents@beta-feat-launch-picker
 pi install git:github.com/sidstack/pi-codex-agents@v1.2.0-feat-launch-picker-beta.1
 ```
 
-Restart Pi after installation, or run `/reload` in an open Pi session.
+Restart Pi after installation, or run `/reload` in an open Pi session. The agent host is a
+separate long-lived process that keeps running sessions across Pi restarts, so load a new
+build there too with `/agents restart`; running sessions are aborted by that swap, settled ones
+are restored. `/agents status` marks a host that is still on an older build.
 
 To uninstall, run `pi remove npm:pi-codex-agents`. Uninstalling keeps managed
 session history and app state, so they are available if you reinstall later.
@@ -100,12 +103,22 @@ Restart safety is decided per runtime: each session tracks its own `running` fla
 own count of pending prompts independently. A restart asks for confirmation when any
 session reports a run in flight or a pending prompt, and aborts only those runs.
 
-New sessions start with the directory name. After the first completed run, `autoName`
-(default `true`) asks the selected model for a short title using at most the first 2,000
-characters of the first message. This is one extra provider request (up to 96 output tokens,
-15 seconds), so normal provider billing applies. It adds no conversation turn, runs only
-when the fleet is settled, and cancels when new work starts. Home and `/name` titles are
-preserved. Set `autoName: false` to keep directory names without extra requests.
+New sessions start with the directory name until they have a first message. `autoName`
+(default `true`) then names them in two steps: an instant extractive label from the first
+message, followed by one model request for a short title (at most the first 2,000 characters
+of that message, 256 output tokens on minimal thinking, 45 seconds). The label appears as
+soon as the first message is recorded, while the run is still going; the model request waits
+for that session's
+first completed turn, or starts immediately when the first message is longer than 2,000
+characters. A host restart also labels restored sessions that never got a name. It adds no
+conversation turn and follows normal provider billing. A failed, cancelled, or hung request is
+retried up to three times, 20 seconds apart, and each failed attempt is recorded in `host.log`;
+after the third the extractive label stays and one notice reports the reason. Requests are
+independent per session, so other sessions starting work never cancel a pending title. Set
+`nameModel` to a `"provider/id"` model to title with a cheaper model than the session's own; a
+missing or unauthenticated reference stops the requests with a notice and keeps the extractive
+label. Names set with `/name` always win, in Home as elsewhere. Set `autoName: false` to keep
+directory names without any requests.
 
 History discovery caches unchanged metadata and skips managed files before reading.
 Each scan is limited to 10,000 directory entries, 32 MiB total input, 2 MiB per file,
@@ -131,6 +144,7 @@ Create `~/.pi/agent/pi-codex-agents/config.json` to override these defaults:
 ```json
 {
   "autoName": true,
+  "nameModel": "",
   "historyImport": true,
   "autoAttach": true,
   "resumeLastSession": false,

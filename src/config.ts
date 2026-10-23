@@ -6,6 +6,8 @@ import { processIdentity } from "./core/storage.js";
 export interface Config {
   historyImport: boolean;
   autoName: boolean;
+  /** `provider/id` model for automatic session titles; empty means the session's own model. */
+  nameModel: string;
   autoAttach: boolean;
   resumeLastSession: boolean;
   leftArrowEntry: boolean;
@@ -19,7 +21,7 @@ export interface Config {
 }
 
 export const DEFAULT_CONFIG: Readonly<Config> = Object.freeze({
-  autoName: true, historyImport: true, autoAttach: true, resumeLastSession: false, leftArrowEntry: true, commandCenterShortcut: true,
+  autoName: true, nameModel: "", historyImport: true, autoAttach: true, resumeLastSession: false, leftArrowEntry: true, commandCenterShortcut: true,
   sessionCycling: true, showStatus: true, autoInactive: true, autoUpdateHost: true,
   boardFullscreen: true, idleTimeoutMs: 3_600_000,
 });
@@ -102,6 +104,10 @@ export function loadConfig(agentDir = getAgentDir()): Config {
     if (key === "idleTimeoutMs") {
       if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) throw new Error("idleTimeoutMs must be a non-negative integer");
       config.idleTimeoutMs = value;
+    } else if (key === "nameModel") {
+      const model = typeof value === "string" ? value.trim() : value;
+      if (typeof model !== "string" || (model && !/^[^/\s]+\/[^/\s]+$/.test(model))) throw new Error("nameModel must be empty or a \"provider/id\" model reference");
+      config.nameModel = model;
     } else {
       if (typeof value !== "boolean") throw new Error(`${key} must be a boolean`);
       (config as unknown as Record<string, unknown>)[key] = value;

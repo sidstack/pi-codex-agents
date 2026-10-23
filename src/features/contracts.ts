@@ -1,4 +1,4 @@
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext, MessageEndEvent } from "@earendil-works/pi-coding-agent";
 import type { NativeSessionHost, Session } from "../core/sessions.js";
 import type { SavedNativeSession } from "./history-source.js";
 
@@ -8,6 +8,8 @@ export interface SessionFeature {
   start?(host: NativeSessionHost): void | (() => void | Promise<void>);
   refresh?(host: NativeSessionHost): Promise<void>;
   settled?(host: NativeSessionHost, record: Session, ctx: ExtensionContext): void;
+  /** A finalized transcript message in this session, after native persistence. */
+  messageEnd?(host: NativeSessionHost, record: Session, ctx: ExtensionContext, message: MessageEndEvent["message"]): void;
   changed?(host: NativeSessionHost): void;
   input?(host: NativeSessionHost, record: Session, ctx: ExtensionContext, data: string): { consume: true } | undefined;
   history?(host: NativeSessionHost, path: string): Promise<SavedNativeSession | undefined>;
