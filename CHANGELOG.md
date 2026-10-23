@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.1-fix-launch-named-history-beta.1](https://github.com/sidstack/pi-codex-agents/compare/v1.3.0...v1.3.1-fix-launch-named-history-beta.1) (2026-10-23)
+
+### Bug Fixes
+
+* **launch:** open the history a launched Pi named ([c0055d7](https://github.com/sidstack/pi-codex-agents/commit/c0055d7dae30f3e3de59389e99a2c6afae33b177))
+
 ## [1.3.0](https://github.com/sidstack/pi-codex-agents/compare/v1.2.0...v1.3.0) (2026-10-23)
 
 ### Features
