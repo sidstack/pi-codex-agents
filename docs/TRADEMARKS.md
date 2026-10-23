@@ -23,8 +23,10 @@ whatever provider your own Pi installation is configured with.
 - Not a client, wrapper, adapter, bridge, or compatibility layer for OpenAI Codex. This
   repository contains no Codex code and never invokes a Codex CLI or SDK. The only process
   the extension starts is its own `dist/host-entry.js`.
-- Not connected to any OpenAI service. Nothing here authenticates to OpenAI, reads OpenAI
-  credentials, or contacts an OpenAI endpoint on Codex's behalf.
+- No dedicated OpenAI Codex integration. This extension does not implement its own OpenAI
+  authentication or provider client. Managed sessions and automatic session naming use
+  Pi's model and authentication facilities, which may access OpenAI services when
+  configured to do so.
 - Not a member of the Codex product line. "agents" here means Pi sessions this extension
   keeps alive; it is not a Codex feature name.
 

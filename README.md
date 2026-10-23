@@ -9,8 +9,8 @@ Install the published package with Pi's package manager. See
 
 > Independent community project. **Not affiliated with, endorsed by, or produced by
 > OpenAI.** The session UX is modeled on OpenAI Codex's agent dashboard, and that is the
-> only connection: Codex is a trademark of OpenAI OpCo, LLC, and this extension neither
-> uses nor interoperates with it. See
+> design connection: Codex is a trademark of OpenAI OpCo, LLC, and this extension
+> provides no dedicated integration with Codex. See
 > [trademarks and affiliation](docs/TRADEMARKS.md).
 
 ## Install
@@ -327,8 +327,9 @@ installed-package check. See [security](SECURITY.md) for trust boundaries.
 
 The command center and drop-in/drop-out session behavior are modeled on the agent
 dashboard of OpenAI's Codex product. This project is not an OpenAI product and contains
-no Codex code: it talks only to Pi, starts only its own host process, and contacts no
-OpenAI service.
+no Codex code. It runs Pi's native agent SDK in its own host process. Model requests,
+including automatic session naming, use your configured Pi providers, which may include
+OpenAI.
 
 Codex is a trademark of OpenAI OpCo, LLC. Pi and its marks belong to the Pi project.
 See [trademarks and affiliation](docs/TRADEMARKS.md) for the full notice, the reason for
