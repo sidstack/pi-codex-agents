@@ -7,6 +7,12 @@ while you view another session or close your terminal.
 Install the published package with Pi's package manager. See
 [release instructions](docs/RELEASING.md) for maintainer details.
 
+> Independent community project. **Not affiliated with, endorsed by, or produced by
+> OpenAI.** The session UX is modeled on OpenAI Codex's agent dashboard, and that is the
+> only connection: Codex is a trademark of OpenAI OpCo, LLC, and this extension neither
+> uses nor interoperates with it. See
+> [trademarks and affiliation](docs/TRADEMARKS.md).
+
 ## Install
 
 Requires Linux, Node 22.19+, and Pi **>=1.3.0 <1.5.0**; 1.4.0 is the tested baseline.
@@ -316,3 +322,14 @@ and dependency boundaries are in [CONTRIBUTING.md](CONTRIBUTING.md) and
 [architecture](docs/ARCHITECTURE.md). Generated `dist/` is shipped
 for Git installs without a compiler. Run `npm run release:check` for the full
 installed-package check. See [security](SECURITY.md) for trust boundaries.
+
+## Credits and trademarks
+
+The command center and drop-in/drop-out session behavior are modeled on the agent
+dashboard of OpenAI's Codex product. This project is not an OpenAI product and contains
+no Codex code: it talks only to Pi, starts only its own host process, and contacts no
+OpenAI service.
+
+Codex is a trademark of OpenAI OpCo, LLC. Pi and its marks belong to the Pi project.
+See [trademarks and affiliation](docs/TRADEMARKS.md) for the full notice, the reason for
+this name, and the branding rules contributors follow.

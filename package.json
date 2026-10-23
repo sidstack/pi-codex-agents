@@ -1,7 +1,7 @@
 {
   "name": "pi-codex-agents",
   "version": "1.3.0",
-  "description": "Native Pi extension for persistent agent sessions and a session command center",
+  "description": "Native Pi extension for persistent agent sessions and a session command center. Independent project; not affiliated with OpenAI.",
   "type": "module",
   "engines": {
     "node": ">=22.19.0"
@@ -17,6 +17,7 @@
     "docs/ARCHITECTURE.md",
     "docs/RELEASING.md",
     "docs/SECURITY-REVIEW.md",
+    "docs/TRADEMARKS.md",
     "scripts/prepare.mjs",
     "scripts/build.mjs"
   ],
