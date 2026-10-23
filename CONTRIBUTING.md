@@ -37,14 +37,8 @@ respectfully; focus reviews on code and observable behavior.
 
 ## Trademarks and affiliation
 
-This project is independent of OpenAI: it is **not affiliated with, endorsed by, or
-produced by** OpenAI, and it uses no Codex code. Keep the notice in `README.md` and
-[docs/TRADEMARKS.md](docs/TRADEMARKS.md) accurate as the project changes. Do not add
-OpenAI or Codex logos, wordmarks, icons, screenshots, or copied marketing copy, and do not
-use wording that implies OpenAI authorship, sponsorship, or Codex compatibility, such as
-`official`, `ported from Codex`, `works with Codex`, or `Codex for Pi`. Refer to Codex only
-to describe design inspiration, and name features with this project's own vocabulary:
-managed session, host, command center, active, inactive, draft. See
-[docs/TRADEMARKS.md](docs/TRADEMARKS.md) for the full list.
+Keep branding accurate and avoid wording or artwork that implies OpenAI authorship,
+sponsorship, or endorsement. Do not copy OpenAI logos or marketing materials. Keep
+[the affiliation notice](docs/TRADEMARKS.md) accurate as the project changes.
 
 See [release instructions](docs/RELEASING.md) for publication requirements.
