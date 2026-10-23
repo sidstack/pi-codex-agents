@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -228,6 +228,156 @@ describe("a launch that reopens the directory's last session", () => {
     const result = await host.launchSessionForCwd("/tmp/project", () => true, "home");
 
     expect(result).toEqual({ id: "fresh" });
+    expect(create).toHaveBeenCalledWith("/tmp/project", true);
+  });
+});
+
+describe("the session a launched Pi history launches into", () => {
+  function managedHistory(agentDir: string, name: string): string {
+    const directory = join(agentDir, "sessions", "--tmp-project--");
+    mkdirSync(directory, { recursive: true });
+    const file = join(directory, name);
+    writeFileSync(file, '{"type":"session","cwd":"/tmp/project"}\n');
+    return file;
+  }
+
+  it("shows the running managed session that history belongs to", async () => {
+    const agentDir = agentRoot();
+    const sessionFile = managedHistory(agentDir, "01ABC.jsonl");
+    const host = new NativeSessionHost(agentDir, () => ({} as Terminal));
+    withView(host, "home", "/tmp/other", 100);
+    withView(host, "managed", "/tmp/project", 500, sessionFile);
+    const create = vi.spyOn(host, "create");
+
+    const result = await host.launchSessionForFile(sessionFile, "/tmp/project", () => true);
+
+    // The row is entered as it stands: running, waiting, or idle stays exactly as it was.
+    expect(result.id).toBe("managed");
+    expect(result.notice).toContain("running session managed");
+    expect(result.launchError).toBeUndefined();
+    expect(create).not.toHaveBeenCalled();
+    expect(host.sessions.size).toBe(2);
+  });
+
+  it("resumes the saved row behind that history in place, with its id and draft", async () => {
+    const agentDir = agentRoot();
+    const sessionFile = managedHistory(agentDir, "01ABC.jsonl");
+    const host = new NativeSessionHost(agentDir, () => ({} as Terminal));
+    withView(host, "home", "/tmp/other", 100);
+    host.sessions.set("saved", { id: "saved", cwd: "/tmp/project", name: "Project", activity: "inactive", running: false, prompts: 0, unread: false, lastActivityAt: 500, sessionFile, draft: "kept draft" });
+    const create = vi.spyOn(host, "create").mockImplementation(async (cwd, _trusted, _parent, options = {}) => {
+      const record: Session = { ...stubRecord(cwd, cwd), id: options.id ?? cwd, name: options.name ?? cwd, sessionFile: options.sessionFile, draft: options.draft };
+      host.sessions.set(record.id, record);
+      return record;
+    });
+
+    const result = await host.launchSessionForFile(sessionFile, "/tmp/project", () => true, undefined, "01ABC");
+
+    expect(result.id).toBe("saved");
+    expect(result.notice).toContain("Resumed the saved session Project");
+    expect(create).toHaveBeenCalledWith("/tmp/project", true, undefined, expect.objectContaining({ id: "saved", sessionFile, draft: "kept draft" }));
+  });
+
+  it("takes over a Pi history it has never managed, keeping the session id the user typed", async () => {
+    const agentDir = agentRoot();
+    const sessionFile = managedHistory(agentDir, "2026-10-15T00-35-50-610Z_01a13cfc-9cd1-77ed-bb6c-457d545b9c49.jsonl");
+    const host = new NativeSessionHost(agentDir, () => ({} as Terminal));
+    withView(host, "home", "/tmp/other", 100);
+    const create = vi.spyOn(host, "create").mockImplementation(async (cwd, _trusted, _parent, options = {}) => {
+      const record: Session = { ...stubRecord("taken", cwd), sessionFile: options.sessionFile };
+      host.sessions.set(record.id, record);
+      return record;
+    });
+
+    const result = await host.launchSessionForFile(sessionFile, "/tmp/project", () => true);
+
+    // No copy and no second row: the same file becomes the managed history, so the id keeps working.
+    expect(result.id).toBe("taken");
+    expect(result.notice).toContain("01a13cfc-9cd1-77ed-bb6c-457d545b9c49");
+    expect(create).toHaveBeenCalledWith("/tmp/project", true, undefined, { sessionFile });
+    expect(host.sessions.size).toBe(2);
+  });
+
+  it("finds the row by Pi session id when the launched path is not the saved one", async () => {
+    const agentDir = agentRoot();
+    const host = new NativeSessionHost(agentDir, () => ({} as Terminal));
+    withView(host, "home", "/tmp/other", 100);
+    // The row's history sits under another directory name, so only the id can identify it.
+    withView(host, "managed", "/tmp/project", 500, join(agentDir, "sessions", "--moved-project--", "2026-10-15T00-35-50-610Z_01a13cfc-9cd1-77ed-bb6c-457d545b9c49.jsonl"));
+    const create = vi.spyOn(host, "create");
+
+    const result = await host.launchSessionForFile(join(agentDir, "sessions", "--tmp-project--", "2026-10-15T00-35-50-610Z_01a13cfc-9cd1-77ed-bb6c-457d545b9c49.jsonl"), "/tmp/project", () => true, undefined, "01a13cfc-9cd1-77ed-bb6c-457d545b9c49");
+
+    expect(result.id).toBe("managed");
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("starts an ordinary session for a launch that named an id no history has yet", async () => {
+    const agentDir = agentRoot();
+    // Pi writes a fresh history only at its first message, so this launch holds a file that is not there.
+    const unwritten = join(agentDir, "sessions", "--tmp-project--", "01CHOSEN.jsonl");
+    const host = new NativeSessionHost(agentDir, () => ({} as Terminal));
+    withView(host, "home", "/tmp/other", 100);
+    const create = vi.spyOn(host, "create").mockResolvedValue(stubRecord("fresh", "/tmp/project"));
+
+    const result = await host.launchSessionForFile(unwritten, "/tmp/project", () => true, undefined, "01CHOSEN");
+
+    expect(result.id).toBe("fresh");
+    expect(result.launchError).toBeUndefined();
+    expect(result.notice).toBeUndefined();
+    expect(create).toHaveBeenCalledWith("/tmp/project", true);
+  });
+
+  it("marks a saved row failed when its history was deleted under the launch", async () => {
+    const agentDir = agentRoot();
+    const gone = join(agentDir, "sessions", "--tmp-project--", "01ABC.jsonl");
+    const host = new NativeSessionHost(agentDir, () => ({} as Terminal));
+    withView(host, "home", "/tmp/other", 100);
+    host.sessions.set("saved", { id: "saved", cwd: "/tmp/project", name: "Project", activity: "inactive", running: false, prompts: 0, unread: false, lastActivityAt: 500, sessionFile: gone });
+    const create = vi.spyOn(host, "create").mockResolvedValue(stubRecord("fresh", "/tmp/project"));
+
+    const result = await host.launchSessionForFile(gone, "/tmp/project", () => true, undefined, "01ABC");
+
+    expect(result.id).toBe("fresh");
+    expect(result.launchError).toContain("Could not resume saved session Project");
+    expect(result.notice).toBeUndefined();
+    expect(host.sessions.get("saved")?.activity).toBe("failed");
+    // The replacement is a plain session for the directory, never an attempt at the deleted file.
+    expect(create).toHaveBeenCalledWith("/tmp/project", true);
+  });
+
+  it("refuses a history outside its own sessions directory and keeps the directory launch", async () => {
+    const agentDir = agentRoot();
+    const outside = join(agentDir, "elsewhere.jsonl");
+    writeFileSync(outside, '{"type":"session","cwd":"/tmp/project"}\n');
+    const host = new NativeSessionHost(agentDir, () => ({} as Terminal));
+    withView(host, "home", "/tmp/other", 100);
+    const create = vi.spyOn(host, "create").mockResolvedValue(stubRecord("fresh", "/tmp/project"));
+
+    const result = await host.launchSessionForFile(outside, "/tmp/project", () => true);
+
+    expect(result.id).toBe("fresh");
+    expect(result.launchError).toContain("Could not open the history your Pi launched");
+    expect(result.notice).toBeUndefined();
+    expect(create).toHaveBeenCalledWith("/tmp/project", true);
+  });
+
+  it("refuses a link that points out of its own sessions directory", async () => {
+    const agentDir = agentRoot();
+    const outside = join(agentDir, "elsewhere.jsonl");
+    writeFileSync(outside, '{"type":"session","cwd":"/tmp/project"}\n');
+    const link = join(agentDir, "sessions", "--tmp-project--", "01ABC.jsonl");
+    mkdirSync(join(agentDir, "sessions", "--tmp-project--"), { recursive: true });
+    symlinkSync(outside, link);
+    const host = new NativeSessionHost(agentDir, () => ({} as Terminal));
+    withView(host, "home", "/tmp/other", 100);
+    const create = vi.spyOn(host, "create").mockResolvedValue(stubRecord("fresh", "/tmp/project"));
+
+    const result = await host.launchSessionForFile(link, "/tmp/project", () => true);
+
+    expect(result.id).toBe("fresh");
+    expect(result.launchError).toContain("Could not open the history your Pi launched");
+    // The refused launch went to a fresh session for the directory, never to the linked file.
     expect(create).toHaveBeenCalledWith("/tmp/project", true);
   });
 });

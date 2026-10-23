@@ -48,6 +48,7 @@ export async function attachTerminal(connection, terminal, options = {}) {
             columns: terminal.columns, rows: terminal.rows, kitty: terminal.kittyProtocolActive,
             takeover: options.takeover === true,
             ...(options.launchCwd ? { launchCwd: options.launchCwd } : {}),
+            ...(options.launchSessionFile ? { launchSessionFile: options.launchSessionFile, ...(options.launchSessionId ? { launchSessionId: options.launchSessionId } : {}) } : {}),
         });
         if (connection.socket.destroyed)
             throw new Error("Session host disconnected during attachment");
@@ -60,7 +61,14 @@ export async function attachTerminal(connection, terminal, options = {}) {
                 + "The terminal is back in Pi, but the host may still be running sessions. Use /agents status to check it, "
                 + "or reopen /agents to reconnect and restore saved histories.", transportError ? { cause: transportError } : undefined);
         }
-        return { reason, ...(typeof attachment?.launchError === "string" ? { launchError: attachment.launchError } : {}), quitFrontend, restartHost };
+        return {
+            reason,
+            ...(typeof attachment?.launchError === "string" ? { launchError: attachment.launchError } : {}),
+            ...(typeof attachment?.launchNotice === "string" ? { launchNotice: attachment.launchNotice } : {}),
+            ...(Array.isArray(attachment?.capabilities) ? { hostCapabilities: attachment.capabilities.filter((name) => typeof name === "string") } : {}),
+            quitFrontend,
+            restartHost,
+        };
     }
     finally {
         connection.onEvent = () => { };

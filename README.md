@@ -48,6 +48,17 @@ ordinary Pi at startup and enter the host yourself with `/agents` or Left Arrow.
 `resumeLastSession: true` to reopen the directory's last session on launch instead of starting a
 new one.
 
+Launching Pi on a history it names wins over both of those: `pi --session <id>`,
+`pi --session <file>`, `pi -c`, `pi -r`, and `pi --fork <id>` show **that** session instead of
+starting a new one for the directory. A session the command center already has is opened exactly
+as it is — running, waiting, or idle — and a saved one comes back with its history and draft. A
+history this extension has never managed is taken over in place, so the session id you typed keeps
+working and no copy is written. A launch that names an id no history has yet
+(`pi --session-id <new>`) gets an ordinary new session for the directory. A history outside the
+host's own sessions directory is refused: the launch gets a session for its directory and a notice
+says why. Leaving such a launch (Ctrl+Z) returns to the Pi you started, which still holds that same
+history, so prompt in the managed session or in that Pi, not both.
+
 | Control | Action |
 | --- | --- |
 | /agents or Ctrl+G | Open the command center |
@@ -175,7 +186,7 @@ first `/agents`, and every other control above is unchanged.
 `resumeLastSession: true` makes a launch reopen the directory's last session — a live one, else
 its saved history and draft resumed in place, else a new session — instead of starting a fresh
 one. It belongs to the host, so restart the host after changing it; `autoAttach` is read by the
-frontend.
+frontend. A launch that names a history follows that name whatever these settings say.
 
 ## Choosing a directory for a new session
 
