@@ -158,6 +158,20 @@ terminal. `autoAttach` is frontend configuration only: the host serves the same 
 whether a frontend asked for it or the user pressed `/agents`. `resumeLastSession` is host
 configuration and is read when the host starts.
 
+A launch that already chose its own history says so. Pi builds its session before extensions load,
+so `session_start` still reports `reason: "startup"` for `--session`, `--session-id`, `-c`, `-r`
+and `--fork`; the frontend therefore reads its launch flags, falls back to asking whether the
+launched `SessionManager` already holds entries, and sends the opened `launchSessionFile` with its
+`launchSessionId` in the attach. The host resolves that file to a row: a live row is entered
+exactly as it stands, a saved row is resumed in place with its id, history and draft, and a history
+the host never managed is taken over in place under the same path, so the Pi session id the user
+typed keeps identifying it and no copy is written. Anything outside `<agentDir>/sessions` is
+refused by the same check used for saved histories; that launch falls back to its directory and
+reports the refusal as a launch error. Hosts older than the `launchSessionFile` capability ignore
+the new fields, so the frontend reports that the host needs a restart rather than opening a
+different session quietly. Because the launched Pi keeps its own handle on that history, only one
+of the two — the managed session or that Pi after `leave` — should be prompted into.
+
 The attach handshake completes before waiting for the foreground view's interactive
 initialization, so startup dialogs can render and receive input without the request timeout
 limiting how long the user has to answer. A saved session whose managed history is

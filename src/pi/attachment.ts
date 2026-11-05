@@ -8,12 +8,23 @@ export interface AttachOptions {
   openBoard?: boolean;
   /** The frontend's own directory, so the host can show a session for it. */
   launchCwd?: string;
+  /**
+   * The history the launched Pi already opened - `pi --session <id>`, `-c`, `-r`, `--fork` - so the
+   * host shows that session instead of starting a new one for the directory beside it.
+   */
+  launchSessionFile?: string;
+  /** The Pi session id of that history, so the host can find its row when the saved path moved. */
+  launchSessionId?: string;
 }
 
 export interface AttachmentResult {
   reason: string;
-  /** The host could not open a session for the frontend's own directory. */
+  /** The host could not open the launch target; it chose another session. */
   launchError?: string;
+  /** Which session the launch landed in. */
+  launchNotice?: string;
+  /** What the running host supports. A host older than this frontend lacks newer launch fields. */
+  hostCapabilities?: readonly string[];
   /** The host chose an action that must also end the frontend Pi process. */
   quitFrontend: boolean;
   /** The host replaced itself; the frontend must start the current build and reconnect. */
@@ -65,7 +76,8 @@ export async function attachTerminal(connection: NativeConnection, terminal: Ter
       columns: terminal.columns, rows: terminal.rows, kitty: terminal.kittyProtocolActive,
       takeover: options.takeover === true,
       ...(options.launchCwd ? { launchCwd: options.launchCwd } : {}),
-    }) as { launchError?: unknown } | undefined;
+      ...(options.launchSessionFile ? { launchSessionFile: options.launchSessionFile, ...(options.launchSessionId ? { launchSessionId: options.launchSessionId } : {}) } : {}),
+    }) as { launchError?: unknown; launchNotice?: unknown; capabilities?: unknown } | undefined;
     if (connection.socket.destroyed) throw new Error("Session host disconnected during attachment");
     // Attaching shows a session; the board is an explicit follow-up request.
     if (options.openBoard !== false) await connection.request("open");
@@ -78,7 +90,14 @@ export async function attachTerminal(connection: NativeConnection, terminal: Ter
         transportError ? { cause: transportError } : undefined,
       );
     }
-    return { reason, ...(typeof attachment?.launchError === "string" ? { launchError: attachment.launchError } : {}), quitFrontend, restartHost };
+    return {
+      reason,
+      ...(typeof attachment?.launchError === "string" ? { launchError: attachment.launchError } : {}),
+      ...(typeof attachment?.launchNotice === "string" ? { launchNotice: attachment.launchNotice } : {}),
+      ...(Array.isArray(attachment?.capabilities) ? { hostCapabilities: (attachment.capabilities as unknown[]).filter((name): name is string => typeof name === "string") } : {}),
+      quitFrontend,
+      restartHost,
+    };
   } finally {
     connection.onEvent = () => {};
     connection.socket.off("error", noteTransportError);

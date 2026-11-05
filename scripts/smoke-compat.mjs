@@ -72,8 +72,10 @@ try {
   // A host that predates settledStop runs its own shutdown semantics, which recorded settled
   // sessions as stopped. It must be reported, never replaced silently.
   const hostSource = await readFile(join(copied, "core/host.js"), "utf8");
-  assert(hostSource.includes('capabilities: ["settledStop", "safeUpdate"],'), "the current host advertises settledStop");
-  await writeFile(join(copied, "core/host.js"), hostSource.replace('capabilities: ["settledStop", "safeUpdate"],', ''));
+  // Match the field, not its contents: the advertised list grows with each host build.
+  const advertised = /capabilities: \[[^\]]*\],/.exec(hostSource);
+  assert(advertised && advertised[0].includes('"settledStop"'), "the current host advertises settledStop");
+  await writeFile(join(copied, "core/host.js"), hostSource.replace(advertised[0], ""));
   await writeHostIdentity({ version: "0.0.3-older", protocol: PROTOCOL_VERSION });
   startCopiedHost();
   await wait(2500);

@@ -1,5 +1,5 @@
 import { realpath, stat, writeFile } from "node:fs/promises";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { basename, join, resolve } from "node:path";
 import {
@@ -30,11 +30,13 @@ export interface Session extends LiveSession {
   draft?: string;
 }
 
-/** What a frontend should show for its own launch directory, and what went wrong getting there. */
+/** What a frontend should show for its own launch, and what went wrong getting there. */
 export interface LaunchSessionResult {
   id: string;
-  /** The directory's saved history could not be resumed; a usable session was started instead. */
+  /** The launch target could not be opened; a usable session was started instead. */
   launchError?: string;
+  /** Which session the launch landed in, so the frontend can say it out loud. */
+  notice?: string;
 }
 
 export interface NativeSessionOptions {
@@ -53,6 +55,15 @@ export function nativeTui(mode: InteractiveMode): TUI {
     throw new Error(unsupportedContract("InteractiveMode.ui"));
   }
   return ui;
+}
+
+/**
+ * The Pi session id held in a history file name. Pi writes `<stamp>_<id>.jsonl`, so the id is
+ * what follows the last underscore; a file named without that pattern is its own id.
+ */
+export function historyIdOf(sessionFile: string): string {
+  const name = basename(sessionFile, ".jsonl");
+  return name.slice(name.lastIndexOf("_") + 1);
 }
 
 let nativeVersionChecked = false;
@@ -257,12 +268,99 @@ export class NativeSessionHost extends NativeFleet {
    */
   async launchSessionForCwd(cwd: string, isTrusted: (directory: string) => boolean, claimHomeId?: string): Promise<LaunchSessionResult> {
     if (this.config.resumeLastSession) return this.resumeSessionForCwd(cwd, isTrusted);
+    return this.launchFresh(cwd, isTrusted, claimHomeId);
+  }
+
+  private async launchFresh(cwd: string, isTrusted: (directory: string) => boolean, claimHomeId?: string): Promise<LaunchSessionResult> {
     if (claimHomeId) {
       const home = this.sessions.get(claimHomeId);
       if (home && home.cwd === cwd && !home.stopping) return { id: home.id };
     }
     const created = await this.create(cwd, isTrusted(cwd));
     return { id: created.id };
+  }
+
+  /**
+   * The session a frontend launch gets when the launched Pi already opened a history: `pi
+   * --session <id>`, `--session-id <id>`, `-c`, `-r` or `--fork <id>`. Pi builds that session
+   * before extensions load, so the frontend cannot tell it apart from a fresh launch by event
+   * reason and names the history it opened instead of leaving the host to guess from the directory.
+   *
+   * The named history is shown, never duplicated: a live row is activated as it stands, a saved row
+   * is resumed in place with its id, history and draft, and a history the host has not taken over
+   * yet is opened where it lies and keeps its Pi session id, so a later `pi --session <id>` lands in
+   * the same managed row. Managed histories live in Pi's own sessions directory, so a Pi session id
+   * and a managed session are the same thing seen from either side.
+   * A history outside that directory is refused: the launch falls back to the frontend's directory.
+   */
+  async launchSessionForFile(sessionFile: string, cwd: string | undefined, isTrusted: (directory: string) => boolean, claimHomeId?: string, sessionId?: string): Promise<LaunchSessionResult> {
+    const target = resolve(sessionFile);
+    const row = this.findHistoryRow(target, sessionId);
+    if (row) {
+      // Already in the command center: whatever state it is in becomes the foreground view.
+      if (isNavigable(row)) return { id: row.id, notice: `Launched into the running session ${row.name}.` };
+      if (row.sessionFile) {
+        const resumed = await this.resumeSavedRow(row, isTrusted);
+        return { ...resumed, notice: resumed.launchError ? undefined : `Resumed the saved session ${row.name}.` };
+      }
+    }
+    const directory = cwd ?? row?.cwd ?? (await this.findHistory(target))?.cwd;
+    // A launch that named an id no history has yet - `pi --session-id <new>` - holds an empty session
+    // Pi has not written to disk. Its own new session for the directory is what that launch asked for,
+    // so it needs no refusal and no notice.
+    if (!row && !existsSync(target)) {
+      if (!directory) throw new Error(`The launched history ${target} is not written yet and no directory was named to open one in`);
+      return await this.launchFresh(directory, isTrusted, claimHomeId);
+    }
+    const root = join(this.agentDir, "sessions");
+    let refusal = "";
+    try {
+      assertManagedFile(root, target);
+    } catch (error) {
+      refusal = error instanceof Error ? error.message : String(error);
+    }
+    if (refusal) {
+      if (!directory) throw new Error(`Refusing to open the launched history ${target}: ${refusal}`);
+      const fallback = await this.launchFresh(directory, isTrusted, claimHomeId);
+      return {
+        ...fallback,
+        notice: undefined,
+        launchError: `Could not open the history your Pi launched (${target}): ${refusal}. Showing a session for ${directory} instead.`,
+      };
+    }
+    if (!directory) throw new Error(`The launched history ${target} names no directory to open it in`);
+    // Take the history over in place instead of copying it, so the session id the user typed
+    // keeps identifying this session and the launch never leaves an orphan copy behind.
+    const options: NativeSessionOptions = { sessionFile: target };
+    if (row) {
+      options.id = row.id;
+      options.name = row.name.replace(/^Saved /, "");
+      options.draft = row.draft;
+    }
+    const created = await this.create(directory, isTrusted(directory), undefined, options);
+    return { id: created.id, notice: `Took over the launched history ${historyIdOf(target)} as the managed session ${created.name}.` };
+  }
+
+  /**
+   * The row that owns a history, matched by managed or discovered path, then by Pi session id, so
+   * a saved row whose file moved is still found by the id the user launched.
+   */
+  private findHistoryRow(file: string, sessionId?: string): Session | undefined {
+    const target = resolve(file);
+    const canonical = this.canonicalPath(target);
+    const id = sessionId?.trim();
+    const sameFile = (path: string | undefined): boolean => Boolean(path)
+      && (resolve(path!) === target || (canonical !== undefined && this.canonicalPath(path!) === canonical));
+    return [...this.sessions.values()].find((row) => sameFile(row.sessionFile) || sameFile(row.sourceFile)
+      || (Boolean(id) && Boolean(row.sessionFile) && historyIdOf(row.sessionFile!) === id));
+  }
+
+  private canonicalPath(path: string): string | undefined {
+    try {
+      return realpathSync(path);
+    } catch {
+      return undefined;
+    }
   }
 
   /**
@@ -277,25 +375,33 @@ export class NativeSessionHost extends NativeFleet {
     if (live[0]) return { id: live[0].id };
     const saved = rows.filter((row) => !row.view && !row.stopping && row.sessionFile)
       .sort((a, b) => (b.lastActivityAt ?? 0) - (a.lastActivityAt ?? 0))[0];
-    if (saved?.sessionFile) {
-      try {
-        assertManagedFile(join(this.agentDir, "sessions"), saved.sessionFile);
-        const resumed = await this.create(cwd, isTrusted(cwd), undefined, {
-          id: saved.id, name: saved.name, sessionFile: saved.sessionFile, sourceFile: saved.sourceFile, draft: saved.draft,
-        });
-        return { id: resumed.id };
-      } catch (error) {
-        this.fail(saved, error);
-        const reason = error instanceof Error ? error.message : String(error);
-        const created = await this.create(cwd, isTrusted(cwd));
-        return {
-          id: created.id,
-          launchError: `Could not resume saved session ${saved.name} in ${cwd}: ${reason}. Showing a new session for this directory; the saved entry is marked failed.`,
-        };
-      }
-    }
+    if (saved?.sessionFile) return this.resumeSavedRow(saved, isTrusted);
     const created = await this.create(cwd, isTrusted(cwd));
     return { id: created.id };
+  }
+
+  /**
+   * Reopen a row that has no live view in place: same row, name, managed history and draft.
+   * A history that cannot be opened keeps its failed row and yields a usable fallback session
+   * plus the reason, so the caller can show what happened instead of failing the attachment.
+   */
+  private async resumeSavedRow(row: Session, isTrusted: (directory: string) => boolean): Promise<LaunchSessionResult> {
+    const sessionFile = row.sessionFile!;
+    try {
+      assertManagedFile(join(this.agentDir, "sessions"), sessionFile);
+      const resumed = await this.create(row.cwd, isTrusted(row.cwd), undefined, {
+        id: row.id, name: row.name, sessionFile, sourceFile: row.sourceFile, draft: row.draft,
+      });
+      return { id: resumed.id };
+    } catch (error) {
+      this.fail(row, error);
+      const reason = error instanceof Error ? error.message : String(error);
+      const created = await this.create(row.cwd, isTrusted(row.cwd));
+      return {
+        id: created.id,
+        launchError: `Could not resume saved session ${row.name} in ${row.cwd}: ${reason}. Showing a new session; the saved entry is marked failed.`,
+      };
+    }
   }
 
   create(cwd: string, trusted: boolean, parent?: ExtensionContext, options: NativeSessionOptions = {}): Promise<Session> {

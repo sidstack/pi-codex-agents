@@ -28,7 +28,10 @@ with tempfile.TemporaryDirectory(prefix="pi-codex-agents-extension-") as temp:
     (agent / "pi-codex-agents" / "config.json").write_text(json.dumps({"autoAttach": False}))
     env = {**os.environ, "PI_CODING_AGENT_DIR": str(agent), "PI_CODEX_AGENTS_NATIVE_DIR": str(root / "host"),
            "PI_CODEX_AGENTS_IDLE_MS": "1500", "PI_OFFLINE": "1", "TERM": "xterm-256color"}
-    env.pop("PI_CODEX_AGENTS_NATIVE_DAEMON", None)
+    # Smoke runs launch real Pi frontends. A marker inherited from a session that is
+    # already managed would make the extension stay out of the way.
+    for marker in ("PI_CODEX_AGENTS_NATIVE_DAEMON", "PI_AGENTS_NATIVE_DAEMON"):
+        env.pop(marker, None)
 
     cli = Path(os.environ.get("PI_CODEX_AGENTS_TEST_PI_CLI", str(repo / "node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js")))
     tarball = os.environ.get("PI_CODEX_AGENTS_TEST_TARBALL")

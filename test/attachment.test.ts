@@ -9,7 +9,7 @@ import { connectNative, type NativeConnection } from "../src/pi/client.js";
 import { attachTerminal } from "../src/pi/attachment.js";
 
 /** How the fake host ends the attachment after answering attach/open. */
-type Ending = "drop" | "garbage" | "detached" | "quit" | "stopped" | "attach-only" | "launch-error" | "startup-dialog" | "reject-attach";
+type Ending = "drop" | "garbage" | "detached" | "quit" | "stopped" | "attach-only" | "launch-error" | "launch-history" | "startup-dialog" | "reject-attach";
 
 interface FakeHost {
   socketPath: string;
@@ -56,14 +56,16 @@ async function listenFakeHost(ending: Ending): Promise<FakeHost> {
       }
       const answer = encodeJsonl({ type: "response", id: message.id, success: true, result: message.type === "attach" && ending === "launch-error"
         ? { answered: "attach", launchError: "Could not open a session for /tmp/gone: Not a directory" }
-        : { answered: String(message.type) } });
+        : message.type === "attach" && ending === "launch-history"
+          ? { answered: "attach", launchNotice: "Launched into the running session Project.", capabilities: ["settledStop", "safeUpdate", "launchSessionFile"] }
+          : { answered: String(message.type) } });
       if (message.type !== "open") {
         socket.write(answer);
         // A session-only attachment never sends open, so these hosts detach on attach.
-        if (ending === "launch-error" || ending === "attach-only") socket.write(encodeJsonl({ type: "detached", reason: "Returned to Pi." }), () => socket.end());
+        if (ending === "launch-error" || ending === "launch-history" || ending === "attach-only") socket.write(encodeJsonl({ type: "detached", reason: "Returned to Pi." }), () => socket.end());
         return;
       }
-      if (ending === "detached" || ending === "launch-error" || ending === "attach-only") { socket.write(answer); socket.write(encodeJsonl({ type: "detached", reason: "Left the session view; sessions kept running." }), () => socket.end()); }
+      if (ending === "detached" || ending === "launch-error" || ending === "launch-history" || ending === "attach-only") { socket.write(answer); socket.write(encodeJsonl({ type: "detached", reason: "Left the session view; sessions kept running." }), () => socket.end()); }
       else if (ending === "quit") { socket.write(answer); socket.write(encodeJsonl({ type: "detached", reason: "Host is quitting the frontend Pi.", quitFrontend: true }), () => socket.end()); }
       else if (ending === "stopped") { socket.write(answer); socket.write(encodeJsonl({ type: "stopped", quitFrontend: true, restart: true }), () => socket.end()); }
       else if (ending === "garbage") { socket.write(answer); socket.write("not a native record\n", () => socket.destroy()); }
@@ -216,5 +218,30 @@ describe("terminal attachment", () => {
 
     expect(outcome.error).toBeUndefined();
     expect(outcome.result?.launchError).toContain("Could not open a session for /tmp/gone");
+  });
+
+  it("names the history the launched Pi opened so the host shows that session", async () => {
+    const outcome = await runAttachment("launch-history", {
+      openBoard: false, launchCwd: "/tmp/project", launchSessionFile: "/tmp/agent/sessions/--tmp-project--/01ABC.jsonl", launchSessionId: "01ABC",
+    });
+
+    expect(outcome.error).toBeUndefined();
+    expect(outcome.requests[0]).toMatchObject({
+      launchCwd: "/tmp/project",
+      launchSessionFile: "/tmp/agent/sessions/--tmp-project--/01ABC.jsonl",
+      launchSessionId: "01ABC",
+    });
+    // The host says which session it opened and what it supports, so the frontend can report both.
+    expect(outcome.result?.launchNotice).toBe("Launched into the running session Project.");
+    expect(outcome.result?.hostCapabilities).toContain("launchSessionFile");
+  });
+
+  it("carries no launch history for an ordinary directory launch", async () => {
+    const outcome = await runAttachment("attach-only", { openBoard: false, launchCwd: "/tmp/project" });
+
+    expect(outcome.requests[0]).not.toHaveProperty("launchSessionFile");
+    expect(outcome.requests[0]).not.toHaveProperty("launchSessionId");
+    expect(outcome.result).not.toHaveProperty("launchNotice");
+    expect(outcome.result).not.toHaveProperty("hostCapabilities");
   });
 });

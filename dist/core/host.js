@@ -108,7 +108,7 @@ export async function startNativeDaemon(cwd, config = Object.freeze(loadConfig()
         version: VERSION, buildId: BUILD_ID, protocolVersion: PROTOCOL_VERSION, pid: process.pid, identity: processIdentity(), initializing, attached: Boolean(attached), activeId: host.activeId,
         // A host that predates settledStop cannot be trusted to shut itself down without
         // recording settled sessions as stopped, so the frontend will not replace it silently.
-        capabilities: ["settledStop", "safeUpdate"],
+        capabilities: ["settledStop", "safeUpdate", "launchSessionFile"],
         unsettledCount: countUnsettled([...host.sessions.values()]),
         sessions: [...host.sessions.values()].map((r) => ({ id: r.id, name: r.name, cwd: r.cwd, activity: r.activity,
             running: r.running, prompts: r.prompts, pendingOperations: r.pendingOperations, unread: r.unread, lastError: r.lastError, sessionFile: r.sessionFile,
@@ -399,19 +399,27 @@ export async function startNativeDaemon(cwd, config = Object.freeze(loadConfig()
         hub.dimensions(Number(message.columns) || 100, Number(message.rows) || 30, Boolean(message.kitty));
         // A frontend launches Pi in a directory, so the host gives that launch a session for the
         // directory: a new one by default, or the directory's last session when resumeLastSession is on.
-        // A failure here never breaks the attachment: the previous foreground session stays usable.
+        // When the launched Pi already opened a history - `pi --session <id>`, `-c`, `-r`, `--fork` -
+        // the frontend names that history and the host shows it instead of starting another session
+        // beside it. A failure here never breaks the attachment: the previous foreground view stays usable.
         const launchCwd = typeof message.launchCwd === "string" && message.launchCwd.startsWith("/") ? message.launchCwd : undefined;
+        const launchSessionFile = typeof message.launchSessionFile === "string" && message.launchSessionFile.startsWith("/") ? message.launchSessionFile : undefined;
+        const launchSessionId = typeof message.launchSessionId === "string" && message.launchSessionId ? message.launchSessionId : undefined;
         let launchError;
+        let launchNotice;
         // Preparing the target does not start its interactive view.
         let targetId = host.activeId;
-        if (launchCwd) {
+        if (launchCwd || launchSessionFile) {
             try {
-                const target = await host.launchSessionForCwd(launchCwd, trusted, claimHomeId);
+                const target = launchSessionFile
+                    ? await host.launchSessionForFile(launchSessionFile, launchCwd, trusted, claimHomeId, launchSessionId)
+                    : await host.launchSessionForCwd(launchCwd, trusted, claimHomeId);
                 targetId = target.id;
                 launchError = target.launchError;
+                launchNotice = target.notice;
             }
             catch (error) {
-                launchError = `Could not start a session for ${launchCwd}: ${error instanceof Error ? error.message : String(error)}`;
+                launchError = `Could not start a session for ${launchSessionFile ?? launchCwd}: ${error instanceof Error ? error.message : String(error)}`;
                 console.error(launchError);
             }
             // The frontend may have gone away while the target was prepared. Never hand a
@@ -421,7 +429,7 @@ export async function startNativeDaemon(cwd, config = Object.freeze(loadConfig()
                 return;
             }
         }
-        write(socket, { type: "response", id: message.id, success: true, result: { ...snapshot(), launchError } });
+        write(socket, { type: "response", id: message.id, success: true, result: { ...snapshot(), launchError, launchNotice } });
         // Activation is after the ACK. Native startup can wait for a human answer, and the
         // frontend attach timeout must not cut that answer off while the terminal is lent here.
         if (targetId !== host.activeId) {
@@ -453,6 +461,8 @@ export async function startNativeDaemon(cwd, config = Object.freeze(loadConfig()
         row.view.lease.restore();
         if (launchError)
             row.context?.ui.notify(launchError, "error");
+        if (launchNotice)
+            row.context?.ui.notify(launchNotice, "info");
         row.view.ui.requestRender(true);
         persist();
     }
