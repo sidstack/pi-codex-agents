@@ -9,10 +9,10 @@ const roots: string[] = [];
 function temporary() { const root = mkdtempSync(join(tmpdir(), "pi-version-")); roots.push(root); return root; }
 
 describe("supported Pi versions", () => {
-  it.each(["1.3.0", "1.3.7", "1.4.0", "1.4.11"])("accepts the validated patch release %s", (version) => {
+  it.each(["1.3.0", "1.3.7", "1.4.0", "1.4.11", "1.5.0", "1.5.3"])("accepts the validated patch release %s", (version) => {
     expect(supportedPiVersion(version)).toBe(true);
   });
-  it.each(["1.2.9", "1.5.0", "2.0.0", "1.4.0-beta.1", "next"])("rejects the unvalidated release %s", (version) => {
+  it.each(["1.2.9", "1.6.0", "2.0.0", "1.5.0-beta.1", "next"])("rejects the unvalidated release %s", (version) => {
     expect(supportedPiVersion(version)).toBe(false);
   });
   it("states the accepted range in the startup failure", () => {

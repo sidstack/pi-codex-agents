@@ -103,19 +103,25 @@ workflow and the publish workflow run it in their `check` job after `npm ci`.
 
 The allowlist holds one record per accepted exception and nothing else. Each record
 is an advisory id with `active: true`, an `expiry`, and a justification naming the
-only dependency path in this repository. Today that is two records:
-`GHSA-rxp7-6hxx-x8q5` (`ip-address` <=10.7.3, quadratic-time `Address6` zone-id match
-that lets one very long string stall the process) and `GHSA-vfj7-8cjw-p6xm`
-(`braces` <=3.0.3, described below).
+only dependency path in this repository. Today that is three records:
+`GHSA-3g3m-2fjr-6pw4` (`glob` >=9.0.0 <=14.0.1, traversal continues after an abort or
+timeout), `GHSA-g3hv-75wg-m249` (`minimatch` >=7.0.0 <11.0.1, denial of service through
+`globparts` amplification) and `GHSA-vfj7-8cjw-p6xm` (`braces` <=3.0.3, described below).
 
-The `ip-address` finding reaches this repository only as
-`semantic-release` -> `@semantic-release/npm` -> `npm@^11.6.2` -> the copy bundled at
-`node_modules/npm/node_modules/ip-address`. `ip-address@10.7.4` fixes it upstream, but
-every npm release that `@semantic-release/npm` accepts (including the newest npm 11 and
-npm 12) still bundles `10.7.2`, and npm ignores `overrides` for its own bundled
-dependencies, so no range or lockfile change resolves it. The record expires
-`2026-11-20`: when an acceptable npm release bundles `ip-address` >=10.7.4, run
-`npm update npm`, confirm the audit is clean, and delete the record.
+The `glob` and `minimatch` findings reach this repository only as
+`semantic-release` -> `@semantic-release/npm` -> `npm@^11.6.2` -> the copies bundled at
+`node_modules/npm/node_modules/glob` (13.0.6) and
+`node_modules/npm/node_modules/minimatch` (10.2.5). `glob@14.0.2` and
+`minimatch@11.0.1` fix them upstream, but every npm release that
+`@semantic-release/npm` accepts (npm 11.21.2, the newest 11.x, and npm 12.2.2, the
+newest overall) still declares and bundles the vulnerable copies, and npm ignores
+`overrides` for dependencies bundled inside its own tree, so no range or lockfile
+change resolves them. The top-level `minimatch` the Pi peers use is already 11.0.3.
+Both records expire `2026-11-20`: when an acceptable npm release bundles
+`glob` >=14.0.2 and `minimatch` >=11.0.1, run `npm update npm`, confirm the audit is
+clean, and delete the records. `npm update npm` to 11.21.2 is what cleared the earlier
+`undici` and `ip-address` findings, whose records were then deleted; keep that update in
+the lockfile, or those advisories come back and fail the gate.
 
 The allowlist holds one further record, `GHSA-vfj7-8cjw-p6xm` (`braces` <=3.0.3,
 stack exhaustion when expanding deeply nested brace patterns). No fixed version of

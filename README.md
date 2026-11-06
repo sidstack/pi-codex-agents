@@ -12,7 +12,7 @@ Install the published package with Pi's package manager. See
 
 ## Install
 
-Requires Linux, Node 22.19+, and Pi **>=1.3.0 <1.5.0**; 1.4.0 is the tested baseline.
+Requires Linux, Node 22.19+, and Pi **>=1.3.0 <1.6.0**; 1.5.0 is the tested baseline.
 
 ```sh
 pi install npm:pi-codex-agents@latest

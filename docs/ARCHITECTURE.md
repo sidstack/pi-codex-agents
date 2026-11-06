@@ -53,10 +53,10 @@ produces a Stopped session that stays inert until it is opened again.
 
 ## Pi contract
 
-Pi >=1.3.0 <1.5.0 exports InteractiveMode and SDK runtime creation but no public live-view
+Pi >=1.3.0 <1.6.0 exports InteractiveMode and SDK runtime creation but no public live-view
 attachment API. Private UI and shutdown/signal adaptations are scoped to owned mode
 instances, and the extension accepts both private dialog layouts: Pi 1.3.x keeps one
-extension selector/input/editor field, while Pi 1.4.x keeps every open dialog answerable in an
+extension selector/input/editor field, while Pi 1.4.x and later keep every open dialog answerable in an
 `extensionDialogs` stack. Pi's own exit keys (/quit, Ctrl+D, double Ctrl+C) and the command center's Ctrl+Q
 reach the host-owned mode, so the host turns them into the same explicit choice and reports
 `quitFrontend` to the
@@ -226,8 +226,8 @@ and 4 MiB inbound; socket backlog is bounded to 2 MiB and pending requests to 64
 The host permits at most 32 connections. A limit-induced socket loss is an error,
 never a claim that background execution succeeded.
 
-The tested SDK is now Pi 1.4.0. Peers and bootstrap/runtime checks accept stable
-1.3.x and 1.4.x releases (>=1.3.0 <1.5.0); private adapter method guards remain in force
+The tested SDK is now Pi 1.5.0. Peers and bootstrap/runtime checks accept stable
+1.3.x through 1.5.x releases (>=1.3.0 <1.6.0); private adapter method guards remain in force
 and select the dialog layout the running Pi actually provides. A new Pi minor needs
 validation before its minor is added to the range. A private member that only exists in one
 minor never makes the other minor start: each adapter probes the shape it needs at runtime.

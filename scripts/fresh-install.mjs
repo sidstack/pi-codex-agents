@@ -14,7 +14,7 @@ try {
   const tarball = join(temp, readdirSync(temp).find((name) => name.endsWith(".tgz")));
   const pi = join(temp, "pi"); mkdirSync(pi);
   // A separate real Pi installation, with no module lookup into the checkout.
-  run("npm", ["install", "--prefix", pi, "--no-audit", "--no-fund", "--package-lock=false", "@earendil-works/pi-coding-agent@1.4.0"]);
+  run("npm", ["install", "--prefix", pi, "--no-audit", "--no-fund", "--package-lock=false", "@earendil-works/pi-coding-agent@1.5.0"]);
   const cli = join(pi, "node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js");
   run("python3", ["scripts/smoke-extension.py"], { env: { ...process.env, PI_CODEX_AGENTS_TEST_TARBALL: tarball, PI_CODEX_AGENTS_TEST_PI_CLI: cli } });
 
