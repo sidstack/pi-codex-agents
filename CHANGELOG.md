@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.4.0](https://github.com/sidstack/pi-codex-agents/compare/v1.3.0...v1.4.0) (2026-11-06)
+
+### Features
+
+* support Pi 1.5.0 ([b5cc252](https://github.com/sidstack/pi-codex-agents/commit/b5cc25232b52e7055519a6981488dc1140fdea77))
+
+### Bug Fixes
+
+* **launch:** open the history a launched Pi named ([c0055d7](https://github.com/sidstack/pi-codex-agents/commit/c0055d7dae30f3e3de59389e99a2c6afae33b177))
+
 ## [1.4.0-feat-pi-1-5-support-beta.1](https://github.com/sidstack/pi-codex-agents/compare/v1.3.0...v1.4.0-feat-pi-1-5-support-beta.1) (2026-11-06)
 
 ### Features
