@@ -13,7 +13,9 @@ const committedConfig = JSON.parse(readFileSync(join(root, "audit-ci.json"), "ut
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { scripts: Record<string, string>; dependencies?: Record<string, string>; devDependencies: Record<string, string> };
 
 const bracesAdvisory = "GHSA-vfj7-8cjw-p6xm";
-const ipAddressAdvisory = "GHSA-rxp7-6hxx-x8q5";
+const globAdvisory = "GHSA-3g3m-2fjr-6pw4";
+const minimatchAdvisory = "GHSA-g3hv-75wg-m249";
+const exceptions = [bracesAdvisory, globAdvisory, minimatchAdvisory];
 
 function committedException(advisory: string): { active?: boolean; notes?: string; expiry?: string } {
   const exception = committedConfig.allowlist.find((entry) => entry[advisory])?.[advisory];
@@ -67,12 +69,9 @@ describe("dependency audit gate", () => {
     const allowlist = Allowlist.mapConfigToAllowlist({ allowlist: committedConfig.allowlist });
     expect(allowlist.modules).toEqual([]);
     expect(allowlist.paths).toEqual([]);
-    expect(allowlist.advisories).toEqual([bracesAdvisory, ipAddressAdvisory]);
-    expect(allowlist.advisoryRecords).toEqual([
-      { [bracesAdvisory]: committedException(bracesAdvisory) },
-      { [ipAddressAdvisory]: committedException(ipAddressAdvisory) },
-    ]);
-    for (const advisory of [bracesAdvisory, ipAddressAdvisory]) {
+    expect(allowlist.advisories).toEqual(exceptions);
+    expect(allowlist.advisoryRecords).toEqual(exceptions.map((advisory) => ({ [advisory]: committedException(advisory) })));
+    for (const advisory of exceptions) {
       const record = committedException(advisory);
       expect(record.active).toBe(true);
       expect(record.expiry).toBe("2026-11-20");
@@ -91,36 +90,50 @@ describe("dependency audit gate", () => {
     expect(gate.output).toContain("Passed npm security audit");
   });
 
-  it("passes for the ip-address advisory bundled inside the release toolchain npm dependency", () => {
-    // The advisory is only reachable through node_modules/npm/node_modules/ip-address, the copy
-    // bundled inside the npm CLI that @semantic-release/npm installs. npm ships no accepted
-    // release with a fixed bundle, and bundled dependencies ignore overrides, so the record
-    // suppresses it until the review date instead of widening the gate.
-    const gate = runAuditGate("npm-audit-ip-address-allowlisted.json");
+  it("passes for the glob and minimatch advisories bundled inside the release toolchain npm dependency", () => {
+    // Both advisories are reachable only through the copies bundled at
+    // node_modules/npm/node_modules/{glob,minimatch} inside the npm CLI that
+    // @semantic-release/npm installs. No accepted npm release bundles a fixed copy, and
+    // bundled dependencies ignore overrides, so the records suppress them until the review
+    // date instead of widening the gate.
+    // The fixture keeps the two advisory records and their npm-bundled node paths, with the
+    // `effects` chains emptied: they would otherwise name the dozens of npm internals that
+    // transitively reach glob and minimatch, and audit-ci resolves every effect entry.
+    const gate = runAuditGate("npm-audit-npm-bundled-allowlisted.json");
     expect(gate.status).toBe(0);
     expect(gate.output).toContain("Passed npm security audit");
-    expect(gate.output).toContain(`Found vulnerable allowlisted advisories: ${ipAddressAdvisory}`);
+    expect(gate.output).toContain(`Found vulnerable allowlisted advisories: ${globAdvisory}, ${minimatchAdvisory}`);
     expect(gate.output).not.toContain("Failed security audit");
-    expect(gate.output).not.toContain(`${ipAddressAdvisory}|`);
+    expect(gate.output).not.toContain(`${globAdvisory}|`);
+    expect(gate.output).not.toContain(`${minimatchAdvisory}|`);
 
-    const report = JSON.parse(readFileSync(join(fixtureDir, "npm-audit-ip-address-allowlisted.json"), "utf8")) as { vulnerabilities: Record<string, { nodes: string[] }> };
-    expect(report.vulnerabilities["ip-address"]?.nodes).toEqual(["node_modules/npm/node_modules/ip-address"]);
-    expect(pkg.dependencies?.["ip-address"]).toBeUndefined();
+    const report = JSON.parse(readFileSync(join(fixtureDir, "npm-audit-npm-bundled-allowlisted.json"), "utf8")) as { vulnerabilities: Record<string, { nodes: string[] }> };
+    expect(report.vulnerabilities["glob"]?.nodes).toEqual(["node_modules/npm/node_modules/glob"]);
+    expect(report.vulnerabilities["minimatch"]?.nodes).toEqual(["node_modules/npm/node_modules/minimatch"]);
+    for (const name of ["glob", "minimatch"]) expect(pkg.dependencies?.[name]).toBeUndefined();
 
-    // The locked tree proves the exception is dev-only: the advisory lives in the ip-address copy
+    // The locked tree proves both exceptions are dev-only: each advisory lives in the copy
     // nested inside the npm CLI that @semantic-release/npm installs, and that whole subtree is
-    // marked dev because this package has no production dependencies.
+    // marked dev because this package has no production dependencies. The copy the Pi peers
+    // use at the top level is already outside the vulnerable ranges.
     const lock = JSON.parse(readFileSync(join(root, "package-lock.json"), "utf8")) as { packages: Record<string, { version?: string; dev?: boolean; dependencies?: Record<string, string> }> };
-    const vulnerable = lock.packages["node_modules/npm/node_modules/ip-address"];
+    const bundled = (name: string) => lock.packages[`node_modules/npm/node_modules/${name}`];
     const npmPackage = lock.packages["node_modules/npm"];
     const semanticReleaseNpm = lock.packages["node_modules/@semantic-release/npm"];
-    expect([npmPackage?.dev, vulnerable?.dev, semanticReleaseNpm?.dev]).toEqual([true, true, true]);
+    expect([npmPackage?.dev, bundled("glob")?.dev, bundled("minimatch")?.dev, semanticReleaseNpm?.dev]).toEqual([true, true, true, true]);
     expect(semanticReleaseNpm?.dependencies?.npm).toBe("^11.6.2");
-    // The newest npm release that satisfies @semantic-release/npm still bundles the vulnerable
-    // copy, so no range or lockfile change resolves the advisory today. If a future lockfile
-    // breaks these two assertions, re-run the audit and delete the allowlist record.
-    expect(npmPackage?.version).toBe("11.21.1");
-    expect(vulnerable?.version).toBe("10.7.2");
+    expect(bundled("glob")?.version).toBe("13.0.6");
+    expect(bundled("minimatch")?.version).toBe("10.2.5");
+
+    // npm 11.21.2 is the newest release satisfying @semantic-release/npm: updating to it fixed
+    // the earlier undici and ip-address findings, and no accepted npm release bundles a fixed
+    // glob >=14.0.2 or minimatch >=11.0.1, so no range or lockfile change resolves these two
+    // advisories today. If a future lockfile breaks these assertions, re-run the audit and
+    // delete the allowlist records.
+    expect(npmPackage?.version).toBe("11.21.2");
+    expect(bundled("undici")?.version).toBe("6.29.1");
+    expect(bundled("ip-address")?.version).toBe("10.7.5");
+    expect(lock.packages["node_modules/minimatch"]?.version).toBe("11.0.3");
   });
 
   it("covers the development tree, where the whole release toolchain lives", () => {
@@ -155,7 +168,8 @@ describe("dependency audit gate", () => {
     expect(gate.output).toContain("Failed security audit due to moderate vulnerabilities");
     // The allowlisted advisories stay suppressed; only the new finding fails the gate.
     expect(gate.output).not.toContain(`${bracesAdvisory}|`);
-    expect(gate.output).not.toContain(`${ipAddressAdvisory}|`);
+    expect(gate.output).not.toContain(`${globAdvisory}|`);
+    expect(gate.output).not.toContain(`${minimatchAdvisory}|`);
   });
 
   it("fails again once the allowlist record expires", () => {

@@ -36,8 +36,9 @@ jobs:
           test -z "$(git ls-files --others --exclude-standard dist)"
       # Full dependency audit (production and dev tree) with documented exceptions in
       # audit-ci.json: dev-only release-toolchain advisories with no obtainable fix, braces
-      # GHSA-vfj7-8cjw-p6xm and the npm-bundled ip-address GHSA-rxp7-6hxx-x8q5, each expiring
-      # 2026-11-20. Any other finding at moderate or above fails. See docs/RELEASING.md.
+      # GHSA-vfj7-8cjw-p6xm and the npm-CLI-bundled glob GHSA-3g3m-2fjr-6pw4 and minimatch
+      # GHSA-g3hv-75wg-m249, each expiring 2026-11-20. Any other finding at moderate or
+      # above fails. See docs/RELEASING.md.
       - run: npm run audit:ci
   release:
     name: Release and publish

@@ -112,8 +112,8 @@ describe("release automation", () => {
     // production dependencies, so a production-only audit could never fail this gate.
     for (const name of ["semantic-release", "@semantic-release/npm", "audit-ci"]) expect(pkg.devDependencies[name]).toBeDefined();
     expect(pkg.dependencies).toBeUndefined();
-    expect(auditConfig.allowlist).toHaveLength(2);
-    const advisories = ["GHSA-vfj7-8cjw-p6xm", "GHSA-rxp7-6hxx-x8q5"];
+    expect(auditConfig.allowlist).toHaveLength(3);
+    const advisories = ["GHSA-vfj7-8cjw-p6xm", "GHSA-3g3m-2fjr-6pw4", "GHSA-g3hv-75wg-m249"];
     expect(auditConfig.allowlist.map((record) => Object.keys(record))).toEqual(advisories.map((advisory) => [advisory]));
     for (const advisory of advisories) {
       const record = auditConfig.allowlist.find((entry) => entry[advisory]);
@@ -126,6 +126,7 @@ describe("release automation", () => {
       expect(notes.toLowerCase()).toContain("dev-only");
       // Every exception has to name the dependency path it covers and how to retire it.
       expect(notes).toContain("semantic-release");
+      expect(notes).toContain("not part of the published npm archive");
       expect(notes.toLowerCase()).toContain("review before 2026-11-20");
     }
     for (const file of [ciWorkflow, workflow]) {
